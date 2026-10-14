@@ -280,10 +280,12 @@ impl App {
 mod tests {
     use super::*;
     #[test]
-    fn embedded_artwork_decodes_and_has_a_reasonable_aspect_ratio() {
-        let img = image::load_from_memory(ART).expect("flat-Earth Easter egg artwork");
-        assert!(img.width() >= 600 && img.height() >= 400);
-        assert!(img.width() > img.height());
+    fn embedded_artwork_decodes_as_the_bundled_landscape_texture() {
+        let pixels = image::load_from_memory(ART)
+            .expect("flat-Earth Easter egg artwork")
+            .to_rgba8();
+        assert_eq!(pixels.dimensions(), (700, 360));
+        assert_eq!(pixels.as_raw().len(), 700 * 360 * 4);
     }
     #[test]
     fn hidden_scene_is_off_by_default() {
