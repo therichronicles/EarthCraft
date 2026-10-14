@@ -1,4 +1,4 @@
-//! Ruler units convert the measured great-circle length without changing geometry.
+//! Ruler units format surface lengths and central angles without changing geometry.
 use super::{DistanceUnits, KM_PER_MILE};
 use crate::{EARTH_RADIUS_KM, METERS_PER_KM, language::Lang};
 const METERS_PER_INCH: f64 = 0.0254;
@@ -109,6 +109,24 @@ impl RulerUnit {
             Self::Arcseconds => "ruler-unit-arcseconds-help",
             Self::FootballFields => "ruler-unit-football-fields-help",
         })
+    }
+    pub fn format_with_angle(
+        self,
+        distance_km: f64,
+        angle_degrees: f64,
+        automatic: DistanceUnits,
+        lang: Lang,
+    ) -> String {
+        let angle = if angle_degrees == 0.0 {
+            0.0
+        } else {
+            angle_degrees
+        };
+        match self {
+            Self::Degrees => format!("{angle:.2} °"),
+            Self::Arcseconds => format!("{:.2} ″", angle * ARCSECONDS_PER_DEGREE),
+            _ => self.format(distance_km, automatic, lang),
+        }
     }
     /// Format a segment or path total. Angular units express accumulated central
     /// angle on EarthCraft's mean-radius sphere, not coordinate differences.

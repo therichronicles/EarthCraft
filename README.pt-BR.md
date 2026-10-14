@@ -31,7 +31,8 @@ Consulte as [instruções da Apple](https://support.apple.com/pt-br/102445).
 - Busca de lugares/endereços (Nominatim) e entrada direta de coordenadas "lat, lon"
 - Voo animado até o destino (duplo clique, busca ou lista)
 - Placemarks com importação/exportação KML
-- Régua de distância geodésica (grande círculo), com entrada/edição de pontos em graus decimais exatos, desfazer/refazer, trajetos separados (Alt+clique), unidades métricas, imperiais, náuticas, angulares e divertidas selecionáveis e rumo inicial do último segmento
+- Modelo da Terra selecionável: Esfera perfeita (padrão) ou Realista — WGS 84 (G2296) experimental
+- Régua de distância geodésica (grande círculo ou elipsoidal), com entrada/edição de pontos em graus decimais exatos, desfazer/refazer, trajetos separados (Alt+clique), unidades métricas, imperiais, náuticas, angulares e divertidas selecionáveis e rumo inicial do último segmento
 - Grade lat/lon com números opcionais, atmosfera, estrelas, luz solar em tempo real (dia/noite)
 - Barra de escala, coordenadas do cursor, captura de tela PNG, menu de contexto
 - Renderização do globo por ray-casting na CPU ou GPU (experimental e opcional) em segundo plano, mantendo retorno automático à CPU em casos não suportados

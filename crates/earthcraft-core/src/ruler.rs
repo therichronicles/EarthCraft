@@ -1,4 +1,5 @@
-//! Independent great-circle ruler paths; input and drawing stay in frontends.
+//! Independent surface ruler paths; input and drawing stay in frontends.
+#[cfg(test)]
 use crate::math::haversine_km;
 use std::collections::VecDeque;
 const MAX_HISTORY_STEPS: usize = 100;
@@ -137,10 +138,19 @@ impl Ruler {
         let before = std::mem::take(&mut self.paths);
         self.record(before);
     }
-    pub fn total_distance_km(&self) -> f64 {
+    pub fn angular_distance_degrees(&self, model: crate::earth_model::EarthModel) -> f64 {
         self.paths()
             .flat_map(|path| path.array_windows::<2>())
-            .map(|pair| haversine_km(pair[0], pair[1]))
+            .map(|pair| model.central_angle_degrees(pair[0], pair[1]))
+            .sum()
+    }
+    pub fn total_distance_km(&self) -> f64 {
+        self.distance_km(crate::earth_model::EarthModel::PerfectSphere)
+    }
+    pub fn distance_km(&self, model: crate::earth_model::EarthModel) -> f64 {
+        self.paths()
+            .flat_map(|path| path.array_windows::<2>())
+            .map(|pair| model.distance_km(pair[0], pair[1]))
             .sum()
     }
     pub fn last_leg(&self) -> Option<[(f64, f64); 2]> {
@@ -153,6 +163,21 @@ impl Ruler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn model_switch_remeasures_existing_paths_without_changing_history() {
+        use crate::earth_model::EarthModel;
+        let mut ruler = Ruler::default();
+        ruler.add_point((0.0, 0.0), false);
+        ruler.add_point((0.0, 1.0), false);
+        let sphere = ruler.distance_km(EarthModel::PerfectSphere);
+        let realistic = ruler.distance_km(EarthModel::Wgs84);
+        assert!((sphere - 111.195080234).abs() < 1e-8);
+        assert!((realistic - 111.319490793).abs() < 1e-8);
+        assert!((ruler.angular_distance_degrees(EarthModel::Wgs84) - 1.0).abs() < 1e-12);
+        assert!(ruler.undo());
+        assert_eq!(ruler.point_count(), 1);
+        assert_eq!(ruler.distance_km(EarthModel::Wgs84), 0.0);
+    }
     #[test]
     fn undo_redo_restore_add_delete_clear_and_disconnected_paths() {
         let mut ruler = Ruler::default();

@@ -23,7 +23,9 @@ impl App {
             self.ruler_drag = None;
             return false;
         }
-        let basis = self.renderer.picking_basis(self.cam.basis(aspect));
+        let basis = self
+            .renderer
+            .picking_basis(self.cam.basis_for_model(aspect, self.active_earth_model()));
         let pointer = ui.input(|i| i.pointer.interact_pos());
         let hovered = pointer
             .filter(|p| response.hovered() && rect.contains(*p))

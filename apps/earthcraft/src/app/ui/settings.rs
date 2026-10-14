@@ -12,6 +12,7 @@ impl App {
     pub(in crate::app) fn settings_window(&mut self, ctx: &egui::Context) {
         self.refresh_disk_usage(ctx);
         let lg = self.lang;
+        let previous_model = self.settings.earth_model;
         let mut open = self.show_settings;
         let mut close_requested = false;
         egui::Window::new(lg.text("settings-title"))
@@ -19,6 +20,27 @@ impl App {
             .resizable(false)
             .default_width(420.0)
             .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(lg.text("settings-earth-model-label"));
+                    let models = earthcraft_core::earth_model::EarthModel::ALL;
+                    egui::ComboBox::from_id_salt("earth_model")
+                        .selected_text(lg.text(self.settings.earth_model.name_id()))
+                        .show_ui(ui, |ui| {
+                            super::selection::size_menu(
+                                ui,
+                                models.into_iter().map(|model| lg.text(model.name_id())),
+                            );
+                            for model in models {
+                                super::selection::full_width_value(
+                                    ui,
+                                    &mut self.settings.earth_model,
+                                    model,
+                                    lg.text(model.name_id()),
+                                )
+                                .on_hover_text(lg.text(model.help_id()));
+                            }
+                        });
+                });
                 ui.horizontal(|ui| {
                     ui.label(lg.text("settings-distance-units-label"));
                     let label = |units| {
@@ -188,6 +210,13 @@ impl App {
                         });
                     });
             });
+        if previous_model != self.settings.earth_model
+            && self.explorer.active == earthcraft_core::body::Body::Earth
+        {
+            self.fly = None;
+            self.ruler_paths.end_move();
+            self.ruler_drag = None;
+        }
         self.show_settings = open && !close_requested;
     }
 }

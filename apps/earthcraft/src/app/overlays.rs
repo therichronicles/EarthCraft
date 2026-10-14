@@ -1,5 +1,5 @@
 use super::App;
-use earthcraft_core::{camera::Basis, math::ll_to_v3};
+use earthcraft_core::camera::Basis;
 use earthcraft_data::boundaries::BoundarySnapshot;
 use eframe::egui::{self, Align2, Color32, FontId, Rect, Stroke, Vec2};
 #[cfg(test)]
@@ -65,8 +65,9 @@ impl App {
                 painter.line_segment(segment, stroke);
             }
             if let Some(mid) = leg.label_position {
-                let txt = self.settings.ruler_unit.format(
+                let txt = self.settings.ruler_unit.format_with_angle(
                     leg.distance_km,
+                    leg.angle_degrees,
                     self.distance_units(),
                     self.lang,
                 );
@@ -87,14 +88,14 @@ impl App {
             }
         }
         for p in self.ruler_paths.points() {
-            if let Some(s) = basis.project(ll_to_v3(p.0, p.1), rect) {
+            if let Some(s) = basis.project(basis.surface_position(p.0, p.1), rect) {
                 painter.circle_filled(s, 4.0, Color32::WHITE);
                 painter.circle_stroke(s, 4.0, Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)));
             }
         }
         // placemarks
         for pm in &self.placemarks {
-            if let Some(s) = basis.project(ll_to_v3(pm.lat, pm.lon), rect)
+            if let Some(s) = basis.project(basis.surface_position(pm.lat, pm.lon), rect)
                 && rect.contains(s)
             {
                 painter.circle_filled(s, 6.0, Color32::from_rgb(255, 200, 0));

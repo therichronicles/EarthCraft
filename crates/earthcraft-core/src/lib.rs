@@ -27,3 +27,5 @@ pub mod flight;
 pub mod body;
 
 pub mod units;
+
+pub mod earth_model;

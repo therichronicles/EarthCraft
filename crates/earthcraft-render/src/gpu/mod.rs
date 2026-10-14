@@ -42,6 +42,10 @@ impl GpuRenderer {
             .expect("poll destroyed device");
     }
     pub(crate) fn supports(request: &RenderRequest) -> bool {
+        if request.basis.model != earthcraft_core::earth_model::EarthModel::PerfectSphere {
+            return false;
+        }
+
         overview::supported_zoom(request).is_some()
     }
     pub(crate) fn new() -> Result<Self, String> {

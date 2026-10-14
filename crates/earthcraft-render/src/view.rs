@@ -23,6 +23,7 @@ pub fn raster_size(size_points: Vec2, pixels_per_point: f32, idle: bool) -> (usi
 }
 pub struct RasterView {
     pub camera: Cam,
+    pub model: earthcraft_core::earth_model::EarthModel,
     pub width: usize,
     pub height: usize,
     pub aspect: f64,
@@ -56,7 +57,7 @@ impl RasterView {
                 self.grid,
             ),
             (self.atmosphere, sun_key, self.release_index),
-            self.aspect.to_bits(),
+            (self.aspect.to_bits(), self.model.code()),
         )
             .hash(&mut state);
         let mut presentation = std::collections::hash_map::DefaultHasher::new();
@@ -69,6 +70,7 @@ impl RasterView {
             self.grid,
             self.atmosphere,
             sun_key,
+            self.model.code(),
         )
             .hash(&mut presentation);
         ViewKeys {
@@ -84,6 +86,7 @@ mod tests {
     #[test]
     fn motion_changes_state_but_preserves_presentation_compatibility() {
         let mut view = RasterView {
+            model: earthcraft_core::earth_model::EarthModel::PerfectSphere,
             camera: Cam {
                 lat: 0.0,
                 lon: 0.0,
@@ -100,6 +103,10 @@ mod tests {
             sunlight: true,
         };
         let original = view.keys(120.0);
+        view.model = earthcraft_core::earth_model::EarthModel::Wgs84;
+        assert_ne!(view.keys(120.0).presentation, original.presentation);
+        assert_ne!(view.keys(120.0).state, original.state);
+        view.model = earthcraft_core::earth_model::EarthModel::PerfectSphere;
         view.camera.lon = 90.0;
         let moved = view.keys(120.0);
         assert_ne!(moved.state, original.state);

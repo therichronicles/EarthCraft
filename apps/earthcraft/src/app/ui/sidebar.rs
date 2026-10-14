@@ -316,7 +316,7 @@ impl App {
                                     self.cam.lon,
                                 )));
                             }
-                            let total = self.ruler_paths.total_distance_km();
+                            let total = self.ruler_paths.distance_km(self.settings.earth_model);
                             ui.label(
                                 lg.format(
                                     "ruler-measurement-summary",
@@ -329,7 +329,14 @@ impl App {
                                             "distance",
                                             self.settings
                                                 .ruler_unit
-                                                .format(total, self.distance_units(), lg)
+                                                .format_with_angle(
+                                                    total,
+                                                    self.ruler_paths.angular_distance_degrees(
+                                                        self.settings.earth_model,
+                                                    ),
+                                                    self.distance_units(),
+                                                    lg,
+                                                )
                                                 .into(),
                                         ),
                                     ],
@@ -341,12 +348,14 @@ impl App {
                                 "ruler-point-edit-help"
                             }));
                             if let Some(pair) = self.ruler_paths.last_leg() {
-                                let bearing =
-                                    earthcraft_core::compass::initial_bearing(pair[0], pair[1])
-                                        .map(|bearing| {
-                                            earthcraft_core::compass::heading_text(bearing, lg)
-                                        })
-                                        .unwrap_or_else(|| "—".into());
+                                let bearing = self
+                                    .settings
+                                    .earth_model
+                                    .initial_bearing(pair[0], pair[1])
+                                    .map(|bearing| {
+                                        earthcraft_core::compass::heading_text(bearing, lg)
+                                    })
+                                    .unwrap_or_else(|| "—".into());
                                 ui.label(
                                     lg.format(
                                         "ruler-bearing-label",

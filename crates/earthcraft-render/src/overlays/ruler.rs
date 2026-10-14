@@ -1,7 +1,6 @@
 //! Great-circle ruler geometry shared by frontends.
 use earthcraft_core::{
     camera::Basis,
-    math::{great_circle, haversine_km, ll_to_v3},
     ruler::{Ruler, RulerPointId},
 };
 use emath::{Pos2, Rect};
@@ -10,13 +9,16 @@ pub struct RulerLeg {
     pub segments: Vec<[Pos2; 2]>,
     pub label_position: Option<Pos2>,
     pub distance_km: f64,
+    pub angle_degrees: f64,
 }
 pub fn project_ruler(basis: &Basis, rect: Rect, points: &Ruler) -> Vec<RulerLeg> {
     points
         .paths()
         .flat_map(|path| path.array_windows::<2>())
         .map(|pair| {
-            let projected: Vec<_> = great_circle(pair[0], pair[1], ARC_SEGMENTS)
+            let projected: Vec<_> = basis
+                .model
+                .path(pair[0], pair[1], ARC_SEGMENTS)
                 .into_iter()
                 .map(|point| basis.project(point, rect))
                 .collect();
@@ -28,13 +30,14 @@ pub fn project_ruler(basis: &Basis, rect: Rect, points: &Ruler) -> Vec<RulerLeg>
                 })
                 .collect();
             let label_position = basis
-                .project(ll_to_v3(pair[0].0, pair[0].1), rect)
-                .zip(basis.project(ll_to_v3(pair[1].0, pair[1].1), rect))
+                .project(basis.surface_position(pair[0].0, pair[0].1), rect)
+                .zip(basis.project(basis.surface_position(pair[1].0, pair[1].1), rect))
                 .map(|(a, b)| Pos2::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0));
             RulerLeg {
                 segments,
                 label_position,
-                distance_km: haversine_km(pair[0], pair[1]),
+                distance_km: basis.model.distance_km(pair[0], pair[1]),
+                angle_degrees: basis.model.central_angle_degrees(pair[0], pair[1]),
             }
         })
         .collect()
@@ -58,7 +61,7 @@ pub fn point_at(
                 .map(move |(point, position)| (RulerPointId { path, point }, position))
         })
         .filter_map(|(index, point)| {
-            let screen = basis.project(ll_to_v3(point.0, point.1), rect)?;
+            let screen = basis.project(basis.surface_position(point.0, point.1), rect)?;
             let distance = screen.distance_sq(pointer);
             (rect.contains(screen) && distance <= radius_points * radius_points)
                 .then_some((index, distance))
@@ -94,7 +97,9 @@ mod tests {
             legs.iter().map(|leg| leg.distance_km).sum::<f64>(),
             ruler.total_distance_km()
         );
-        let handle = basis.project(ll_to_v3(20.0, 21.0), rect).unwrap();
+        let handle = basis
+            .project(basis.surface_position(20.0, 21.0), rect)
+            .unwrap();
         assert_eq!(
             point_at(&basis, rect, &ruler, handle, 10.0),
             Some(RulerPointId { path: 1, point: 1 })
@@ -115,7 +120,9 @@ mod tests {
         for point in [(0.0, 0.0), (0.0, 2.0), (0.0, 180.0)] {
             points.add_point(point, false);
         }
-        let second = basis.project(ll_to_v3(0.0, 2.0), rect).unwrap();
+        let second = basis
+            .project(basis.surface_position(0.0, 2.0), rect)
+            .unwrap();
         assert_eq!(
             point_at(&basis, rect, &points, second, 10.0),
             Some(RulerPointId { path: 0, point: 1 })

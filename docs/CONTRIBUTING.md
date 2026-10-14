@@ -143,7 +143,13 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   out-of-range input without changing points. Delete or undo a selected point
   on the map: Apply must require reselection, never overwrite a shifted index.
   Enter submits a coordinate field; Escape/Close cancels unsubmitted input.
-  Repeat in both UI languages. Measurements retain the current spherical model.
+  Repeat in both UI languages. Measurements follow the selected Earth model; the sphere remains the default.
+  In Settings → Earth model, switch Perfect Sphere / Realistic — WGS 84 (G2296).
+  Verify camera center/heading/altitude and ruler coordinates remain intact;
+  totals, arc geometry, grid, labels, aircraft/weather and scale bar must agree
+  with the displayed model. Exercise poles/dateline, anchored zoom, pending frames
+  during a switch, restore defaults and restart persistence in both languages.
+  WGS 84 must use the CPU renderer even with the GPU diagnostic preference.
   Add two ruler points, check the last segment's initial true-north bearing;
   add/remove/edit points and verify the bearing updates. Coincident or antipodal
   points must show an undefined bearing rather than an arbitrary direction.

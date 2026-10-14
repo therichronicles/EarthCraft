@@ -154,6 +154,14 @@ fn unsupported_views_choose_precision_instead_of_truncating_gpu_work() {
         presentation: 0,
     };
     assert!(GpuRenderer::supports(&request));
+    request.basis = request.cam.basis_for_model(
+        request.width as f64 / request.height as f64,
+        earthcraft_core::earth_model::EarthModel::Wgs84,
+    );
+    assert!(!GpuRenderer::supports(&request));
+    request.basis = request
+        .cam
+        .basis(request.width as f64 / request.height as f64);
     request.cam.alt = 0.15;
     assert!(!GpuRenderer::supports(&request));
     request.cam.alt = 14000.0;

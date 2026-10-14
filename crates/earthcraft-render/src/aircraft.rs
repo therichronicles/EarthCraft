@@ -1,8 +1,7 @@
 //! Project actual flight telemetry on the same globe as the base imagery.
-use earthcraft_core::{
-    camera::Basis,
-    math::{destination, ll_to_v3},
-};
+use earthcraft_core::camera::Basis;
+#[cfg(test)]
+use earthcraft_core::math::destination;
 use earthcraft_data::aircraft::Aircraft;
 use emath::{Pos2, Rect, Vec2};
 #[cfg(test)]
@@ -53,22 +52,23 @@ pub fn project_flights(
                 * KM_PER_NAUTICAL_MILE
                 / SECONDS_PER_HOUR;
             let displacement = speed_km_s * age.min(EXTRAPOLATION_MAX_SECS);
-            let (lat, lon) = destination(
-                flight.latitude,
-                flight.longitude,
+            let (lat, lon) = basis.model.destination(
+                (flight.latitude, flight.longitude),
                 flight.heading_deg,
                 displacement,
             );
-            let screen = basis.project(ll_to_v3(lat, lon), rect)?;
+            let screen = basis.project(basis.surface_position(lat, lon), rect)?;
             if !rect.contains(screen) {
                 return None;
             }
             // Project a small step along the actual aircraft track to orient its icon
             // correctly even when the camera is rotated or near a pole.
             let (ahead_lat, ahead_lon) =
-                destination(lat, lon, flight.heading_deg, HEADING_PROBE_KM);
+                basis
+                    .model
+                    .destination((lat, lon), flight.heading_deg, HEADING_PROBE_KM);
             let heading = basis
-                .project(ll_to_v3(ahead_lat, ahead_lon), rect)
+                .project(basis.surface_position(ahead_lat, ahead_lon), rect)
                 .map(|ahead| (ahead.y - screen.y).atan2(ahead.x - screen.x))
                 .unwrap_or(-std::f32::consts::FRAC_PI_2);
             let forward = Vec2::angled(heading) * (ICON_SIZE_POINTS * map_scale);

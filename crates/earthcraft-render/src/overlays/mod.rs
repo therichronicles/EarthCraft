@@ -1,8 +1,5 @@
 //! Geographic overlay projection and occupancy, independent of a widget toolkit.
-use earthcraft_core::{
-    camera::Basis,
-    math::{ll_to_v3, wrap_lon},
-};
+use earthcraft_core::{camera::Basis, math::wrap_lon};
 use earthcraft_data::boundaries::{
     BoundaryData, LabelKind, MapLabel, OTHER_STATES_MAX_ALTITUDE_KM,
 };
@@ -74,8 +71,8 @@ pub fn project_borders(
                     if dlon < -180.0 {
                         dlon += 360.0;
                     }
-                    let start = basis.project(ll_to_v3(lat1, lon1), rect);
-                    let end = basis.project(ll_to_v3(lat2, lon2), rect);
+                    let start = basis.project(basis.surface_position(lat1, lon1), rect);
+                    let end = basis.project(basis.surface_position(lat2, lon2), rect);
                     if let (Some(a), Some(b)) = (start, end) {
                         // Common case: both endpoints are visible, so no extra sampling needed.
                         let from = anchor.unwrap_or(a);
@@ -99,7 +96,7 @@ pub fn project_borders(
                         let t = i as f64 / steps as f64;
                         let lon = wrap_lon(lon1 + dlon * t);
                         let lat = lat1 + dlat * t;
-                        let cur = basis.project(ll_to_v3(lat, lon), rect);
+                        let cur = basis.project(basis.surface_position(lat, lon), rect);
                         if let (Some(a), Some(b)) = (prev, cur) {
                             emit(kind, [a, b]);
                         }
@@ -172,7 +169,7 @@ pub fn project_labels<'a>(
         if !enabled {
             continue;
         }
-        if let Some(pos) = basis.project(ll_to_v3(label.lat, label.lon), rect)
+        if let Some(pos) = basis.project(basis.surface_position(label.lat, label.lon), rect)
             && rect.contains(pos)
         {
             let prio = match label.kind {

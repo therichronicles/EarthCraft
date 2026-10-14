@@ -1,3 +1,4 @@
+use crate::earth_model::EarthModel;
 use crate::math::{ll_to_v3, v3_to_ll, wrap_lon};
 use crate::{
     EARTH_RADIUS_KM, MAX_CAMERA_ALTITUDE_KM, MIN_CAMERA_ALTITUDE_KM, VERTICAL_FOV_HALF_TAN,
@@ -24,7 +25,9 @@ pub struct Cam {
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Basis {
-    pub c: DVec3, // camera position (Earth radii)
+    pub c: DVec3, // camera position (mean Earth radii)
+    pub model: EarthModel,
+    center: (f64, f64),
     view_from_world: DMat3,
     world_from_view: DMat3,
     projection: DMat4,
@@ -33,6 +36,9 @@ pub struct Basis {
 
 impl Cam {
     pub fn basis(&self, aspect: f64) -> Basis {
+        self.basis_for_model(aspect, EarthModel::PerfectSphere)
+    }
+    pub fn basis_for_model(&self, aspect: f64, model: EarthModel) -> Basis {
         let n = ll_to_v3(self.lat, self.lon);
         let (la, lo) = (self.lat.to_radians(), self.lon.to_radians());
         let east = DVec3::new(-lo.sin(), lo.cos(), 0.0);
@@ -43,7 +49,13 @@ impl Cam {
         // Geographic world axes are right-handed. View space is X-right/Y-up/-Z-forward.
         let view_from_world = rh::view::look_to_mat3(f, u);
         Basis {
-            c: n * (1.0 + self.alt / EARTH_RADIUS_KM),
+            c: if model == EarthModel::PerfectSphere {
+                n * (1.0 + self.alt / EARTH_RADIUS_KM)
+            } else {
+                model.geometry().position(self.lat, self.lon) + n * (self.alt / EARTH_RADIUS_KM)
+            },
+            model,
+            center: (self.lat, self.lon),
             view_from_world,
             world_from_view: view_from_world.transpose(),
             // Y-up NDC matches our screen conversion. No far plane clips the globe.
@@ -58,6 +70,18 @@ impl Cam {
 }
 
 impl Basis {
+    pub fn geographic_center(&self) -> (f64, f64) {
+        if self.model == EarthModel::PerfectSphere {
+            v3_to_ll(self.c.normalize())
+        } else {
+            self.center
+        }
+    }
+    #[inline]
+    pub fn surface_position(&self, lat: f64, lon: f64) -> DVec3 {
+        self.model.geometry().position(lat, lon)
+    }
+
     /// Cached view-to-world rotation for batched CPU ray construction.
     pub fn rotation_from_view(&self) -> DMat3 {
         self.world_from_view
@@ -74,7 +98,12 @@ impl Basis {
         (self.world_from_view * view_ray).normalize()
     }
     pub fn project(&self, p: DVec3, rect: Rect) -> Option<Pos2> {
-        if p.dot(self.c) < 1.0 {
+        let horizon_camera = if self.model == EarthModel::PerfectSphere {
+            self.c
+        } else {
+            self.c * self.model.geometry().inverse_axes_squared()
+        };
+        if p.dot(horizon_camera) < 1.0 {
             return None; // behind the horizon
         }
         let v = p - self.c;
@@ -93,6 +122,12 @@ impl Basis {
         let nx = ((pos.x - rect.min.x) / rect.width()) as f64 * 2.0 - 1.0;
         let ny = 1.0 - ((pos.y - rect.min.y) / rect.height()) as f64 * 2.0;
         let d = self.dir(nx, ny);
+        if self.model != EarthModel::PerfectSphere {
+            let geometry = self.model.geometry();
+            return geometry
+                .intersect(self.c, d)
+                .map(|p| geometry.coordinates(p));
+        }
         let b = self.c.dot(d);
         let disc = b * b - (self.c.length_squared() - 1.0);
         if disc < 0.0 || b > 0.0 {
@@ -118,6 +153,52 @@ impl Cam {
         self.lat = (self.lat + dn).clamp(-MAX_CAMERA_LATITUDE_DEG, MAX_CAMERA_LATITUDE_DEG);
         self.lon =
             wrap_lon(self.lon + de / self.lat.to_radians().cos().max(MIN_PAN_LATITUDE_COSINE));
+    }
+
+    pub fn pan_for_model(&mut self, dx: f64, dy: f64, height_pts: f32, model: EarthModel) {
+        if model == EarthModel::PerfectSphere {
+            self.pan(dx, dy, height_pts);
+            return;
+        }
+        let km_per_point = self.alt * 2.0 * VERTICAL_FOV_HALF_TAN / f64::from(height_pts.max(1.0));
+        let movement =
+            DMat2::from_angle(-self.heading.to_radians()) * DVec2::new(-dx, dy) * km_per_point;
+        let (meridional, prime_vertical) = model.geometry().curvature_km(self.lat);
+        self.lat = (self.lat + (movement.y / meridional).to_degrees())
+            .clamp(-MAX_CAMERA_LATITUDE_DEG, MAX_CAMERA_LATITUDE_DEG);
+        self.lon = wrap_lon(
+            self.lon
+                + (movement.x / prime_vertical).to_degrees()
+                    / self.lat.to_radians().cos().max(MIN_PAN_LATITUDE_COSINE),
+        );
+    }
+    pub fn zoom_at_for_model(
+        &mut self,
+        factor: f64,
+        cursor: Option<Pos2>,
+        rect: Rect,
+        aspect: f64,
+        model: EarthModel,
+    ) {
+        if model == EarthModel::PerfectSphere {
+            self.zoom_at(factor, cursor, rect, aspect);
+            return;
+        }
+        let before = cursor.and_then(|c| self.basis_for_model(aspect, model).pick(rect, c));
+        self.zoom(factor);
+        if let (Some(p0), Some(cursor)) = (before, cursor) {
+            const MAX_ANCHOR_ITERATIONS: usize = 12;
+            const ANCHOR_TOLERANCE_KM: f64 = 1e-8;
+            for _ in 0..MAX_ANCHOR_ITERATIONS {
+                let Some(p1) = self.basis_for_model(aspect, model).pick(rect, cursor) else {
+                    break;
+                };
+                if model.distance_km(p0, p1) <= ANCHOR_TOLERANCE_KM {
+                    break;
+                }
+                self.rotate(ll_to_v3(p1.0, p1.1), ll_to_v3(p0.0, p0.1));
+            }
+        }
     }
 
     pub fn zoom(&mut self, factor: f64) {
@@ -167,6 +248,46 @@ mod tests {
     use super::*;
     use crate::math::haversine_km;
     use emath::Vec2;
+
+    #[test]
+    fn wgs84_geodetic_picking_projection_and_zoom_agree() {
+        for (lat, lon, heading, alt) in [
+            (45.0, 179.8, 35.0, 1000.0),
+            (89.9, -170.0, 120.0, 500.0),
+            (-60.0, 120.0, -130.0, 800.0),
+            (0.0, 0.0, 0.0, 0.15),
+        ] {
+            let (mut cam, rect, aspect) = test_app_cam(Cam {
+                lat,
+                lon,
+                heading,
+                alt,
+            });
+            let model = EarthModel::Wgs84;
+            let basis = cam.basis_for_model(aspect, model);
+            let picked = basis.pick(rect, rect.center()).unwrap();
+            assert!(model.distance_km((lat, lon), picked) < 1e-6);
+            let projected = basis
+                .project(basis.surface_position(lat, lon), rect)
+                .unwrap();
+            assert!(projected.distance(rect.center()) < 0.001);
+            let cursor = rect.center() + Vec2::new(80.0, 40.0);
+            let Some(before) = basis.pick(rect, cursor) else {
+                continue;
+            };
+            for factor in [0.7, 0.5, 1.3] {
+                cam.zoom_at_for_model(factor, Some(cursor), rect, aspect, model);
+                let after = cam
+                    .basis_for_model(aspect, model)
+                    .pick(rect, cursor)
+                    .unwrap();
+                assert!(
+                    model.distance_km(before, after) < 1e-6,
+                    "anchor moved at {lat}, {lon}"
+                );
+            }
+        }
+    }
 
     fn test_app_cam(cam: Cam) -> (Cam, Rect, f64) {
         let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0));

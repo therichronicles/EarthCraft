@@ -22,25 +22,45 @@ pub(super) struct Surface {
     pub(super) night: f32,
     pub(super) rim: f32,
 }
-pub(super) fn surface(
+pub(super) fn surface<const ELLIPSOID: bool>(
     x: usize,
     y: usize,
     w: usize,
     h: usize,
     ray: &rays::RaySample,
     cfg: &RenderCfg,
+    geometry: earthcraft_core::earth_model::SurfaceGeometry,
 ) -> Surface {
     let pa = 2.0 * VERTICAL_FOV_HALF_TAN / h as f64;
     let maxz = cfg.provider.max_zoom() as f64;
     let t = ray.distance;
-    let p = ray.point;
     let cosinc = ray.incidence;
-    let (lat, lon) = v3_to_ll(p);
+    let (lat, lon) = if ELLIPSOID {
+        (
+            ray.normal
+                .z
+                .atan2(ray.normal.x.hypot(ray.normal.y))
+                .to_degrees(),
+            ray.normal.y.atan2(ray.normal.x).to_degrees(),
+        )
+    } else {
+        v3_to_ll(ray.point)
+    };
     let coslat = lat.to_radians().cos().max(MIN_LOD_LATITUDE_COSINE);
     // Level of detail (LOD): softer grazing-angle limit and a sharpness bias,
     // which greatly enlarges the high-resolution area.
     let mpp = t * EARTH_RADIUS_M * pa / cosinc.max(MIN_LOD_INCIDENCE_COSINE).sqrt();
-    let zf = ((2.0 * PI * EARTH_RADIUS_M * coslat) / (TILE_SIZE_PX * mpp)).log2();
+    let (meridional_km, prime_vertical_km) = if ELLIPSOID {
+        geometry.curvature_km(lat)
+    } else {
+        (0.0, 0.0)
+    };
+    let latitude_radius_m = if !ELLIPSOID {
+        EARTH_RADIUS_M
+    } else {
+        prime_vertical_km * METERS_PER_KM
+    };
+    let zf = ((2.0 * PI * latitude_radius_m * coslat) / (TILE_SIZE_PX * mpp)).log2();
     let lod = zf + LOD_SHARPNESS_BIAS;
     // Satellite: smooth blend between two levels (no visible circles).
     // Text maps: single, slightly sharper level so labels are not duplicated.
@@ -69,7 +89,12 @@ pub(super) fn surface(
 
     let grid = if cfg.grid {
         let st = cfg.grid_step;
-        let thr = mpp / METERS_PER_LATITUDE_DEGREE * GRID_LINE_WIDTH_PX;
+        let meridian_m_per_degree = if !ELLIPSOID {
+            METERS_PER_LATITUDE_DEGREE
+        } else {
+            meridional_km * METERS_PER_KM * PI / 180.0
+        };
+        let thr = mpp / meridian_m_per_degree * GRID_LINE_WIDTH_PX;
         let dlat = (lat / st - (lat / st).round()).abs() * st;
         let dlon = (lon / st - (lon / st).round()).abs() * st * lat.to_radians().cos().abs();
         dlat < thr || dlon < thr
@@ -77,7 +102,7 @@ pub(super) fn surface(
         false
     };
     let (shade, night) = if let Some(sun) = cfg.sun {
-        let k = ((p.dot(sun) + TWILIGHT_OFFSET) / TWILIGHT_WIDTH).clamp(0.0, 1.0) as f32;
+        let k = ((ray.normal.dot(sun) + TWILIGHT_OFFSET) / TWILIGHT_WIDTH).clamp(0.0, 1.0) as f32;
         let k = k * k * (3.0 - 2.0 * k);
         (
             NIGHT_BRIGHTNESS + DAY_BRIGHTNESS_RANGE * k,

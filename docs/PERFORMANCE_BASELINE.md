@@ -115,3 +115,36 @@ cargo test -p earthcraft aircraft_mesh_repaint_cost --locked -- --ignored --noca
 Headless regressions cover source priority/expiry and request cadence, failure wakeups, coalescing, displayed-frame
 alignment and shared mesh identity. Optional profiling adds `aircraft.snapshot`,
 `aircraft.project` and `ui.aircraft_shapes` through the bounded background recorder.
+
+
+## Earth-model CPU fixture, 2026-10-14
+
+On the same M1 Pro / Rust 1.99 optimized development profile, the isolated warm
+512×384 CPU fixture uses eight Rayon threads, 341 local 256×256 tiles (85.25 MiB),
+grid, atmosphere and sunlight. Each invocation has five rounds of 200 frames.
+The sphere comparison alternates the existing pre-model test executable and the
+new executable (both profiling-enabled, with no active capture). Neither executable
+opens a native window or uses user settings/caches or public services.
+
+| Model/run | Median CPU frame |
+| --- | ---: |
+| Sphere before, invocation 1 / 2 | 2.224 / 2.390 ms |
+| Sphere after, invocation 1 / 2 | 2.158 / 2.132 ms |
+| WGS 84 after, default features | 2.622 ms |
+
+The final WGS 84 round samples were 2.468–2.745 ms. The second sphere invocation
+ranged 2.091–2.618 ms before and 2.066–3.078 ms after, including the slow sample.
+These runs show no sphere regression in this workload; uncontrolled scheduling,
+thermal state and code layout preclude a general speedup or zero-overhead claim.
+The selected ellipsoid performs additional intersection/normal/curvature work;
+its higher cost is not imposed on sphere pixel loops. Other views, GUI latency,
+GPU execution and total app FPS are not established by this fixture.
+
+Reproduce the current model runs separately, without concurrent compilation:
+
+```sh
+RAYON_NUM_THREADS=8 cargo test -p earthcraft-render warm_cpu_frame_time --locked -- --ignored --nocapture --test-threads=1
+RAYON_NUM_THREADS=8 cargo test -p earthcraft-render warm_ellipsoid_cpu_frame_time --locked -- --ignored --nocapture --test-threads=1
+```
+
+See [Earth models](EARTH_MODELS.md) for numerical checks and extension boundaries.

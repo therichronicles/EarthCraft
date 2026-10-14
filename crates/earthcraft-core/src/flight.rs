@@ -1,8 +1,7 @@
 //! Camera flight interpolation, independent of UI timing and input.
 use crate::{
-    MAX_CAMERA_ALTITUDE_KM, MAX_CAMERA_LATITUDE_DEG, MIN_CAMERA_ALTITUDE_KM,
-    camera::Cam,
-    math::{haversine_km, wrap_lon},
+    MAX_CAMERA_ALTITUDE_KM, MAX_CAMERA_LATITUDE_DEG, MIN_CAMERA_ALTITUDE_KM, camera::Cam,
+    earth_model::EarthModel, math::wrap_lon,
 };
 use std::f64::consts::PI;
 const FLY_ARC_ALTITUDE_RATIO: f64 = 0.7;
@@ -17,9 +16,15 @@ pub struct Flight {
     t: f64,
     dur: f64,
     bump: f64,
+    model: EarthModel,
+    distance_km: f64,
+    bearing_deg: f64,
 }
 impl Flight {
     pub fn new(from: Cam, lat: f64, lon: f64, alt: f64) -> Self {
+        Self::new_for_model(from, lat, lon, alt, EarthModel::PerfectSphere)
+    }
+    pub fn new_for_model(from: Cam, lat: f64, lon: f64, alt: f64, model: EarthModel) -> Self {
         let a = from;
         let b = Cam {
             lat: lat.clamp(-MAX_CAMERA_LATITUDE_DEG, MAX_CAMERA_LATITUDE_DEG),
@@ -27,7 +32,7 @@ impl Flight {
             heading: 0.0,
             alt: alt.clamp(MIN_CAMERA_ALTITUDE_KM, MAX_CAMERA_ALTITUDE_KM),
         };
-        let dist = haversine_km((a.lat, a.lon), (b.lat, b.lon));
+        let dist = model.distance_km((a.lat, a.lon), (b.lat, b.lon));
         let bump = if dist * FLY_ARC_ALTITUDE_RATIO > a.alt.max(b.alt) {
             (dist * FLY_ARC_ALTITUDE_RATIO)
                 .min(MAX_CAMERA_ALTITUDE_KM)
@@ -44,6 +49,9 @@ impl Flight {
             t: 0.0,
             dur,
             bump,
+            model,
+            distance_km: dist,
+            bearing_deg: model.route_bearing((a.lat, a.lon), (b.lat, b.lon)),
         }
     }
 
@@ -56,9 +64,18 @@ impl Flight {
         if self.is_finished() {
             return b;
         }
+        let (lat, lon) = if self.model == EarthModel::PerfectSphere {
+            (
+                a.lat + (b.lat - a.lat) * s,
+                wrap_lon(a.lon + wrap_lon(b.lon - a.lon) * s),
+            )
+        } else {
+            self.model
+                .destination((a.lat, a.lon), self.bearing_deg, self.distance_km * s)
+        };
         Cam {
-            lat: a.lat + (b.lat - a.lat) * s,
-            lon: wrap_lon(a.lon + wrap_lon(b.lon - a.lon) * s),
+            lat,
+            lon,
             heading: a.heading + wrap_lon(b.heading - a.heading) * s,
             alt: (la + (lb - la) * s + (PI * t).sin() * self.bump).exp(),
         }
@@ -71,6 +88,28 @@ impl Flight {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ellipsoid_flight_follows_its_geodesic_and_finishes_exactly() {
+        let model = EarthModel::Wgs84;
+        for (start, end) in [
+            ((45.0, 179.0), (-20.0, -170.0)),
+            ((90.0, 30.0), (50.0, -100.0)),
+        ] {
+            let from = Cam {
+                lat: start.0,
+                lon: start.1,
+                heading: 30.0,
+                alt: 500.0,
+            };
+            let mut flight = Flight::new_for_model(from, end.0, end.1, 400.0, model);
+            let middle = flight.advance(flight.dur * 0.5);
+            let half_distance = model.distance_km(start, (middle.lat, middle.lon));
+            assert!((half_distance - model.distance_km(start, end) * 0.5).abs() < 1e-8);
+            let result = flight.advance(flight.dur);
+            assert!(flight.is_finished());
+            assert_eq!((result.lat, result.lon, result.alt), (end.0, end.1, 400.0));
+        }
+    }
     #[test]
     fn flight_crosses_dateline_by_short_path_and_finishes_at_clamped_destination() {
         let from = Cam {

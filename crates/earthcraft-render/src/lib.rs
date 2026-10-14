@@ -149,7 +149,7 @@ fn shade_surface(
     col
 }
 
-fn render_row(
+fn render_row<const ELLIPSOID: bool>(
     y: usize,
     w: usize,
     h: usize,
@@ -162,14 +162,14 @@ fn render_row(
     let pixels: &mut [[u8; RGBA_CHANNELS]] = bytemuck::cast_slice_mut(row);
     for (pack, pixels) in pixels.chunks_mut(RAY_LANES).enumerate() {
         let first_x = pack * RAY_LANES;
-        let samples = rays.cast(first_x, y);
+        let samples = rays.cast_model::<ELLIPSOID>(first_x, y);
         // A short final pack only shades real pixels; padded lanes make no lookups.
         for (lane, (pixel, ray)) in pixels.iter_mut().zip(samples).enumerate() {
             let x = first_x + lane;
             let bb = ray.camera_dot;
             let disc = ray.discriminant;
             let col = if disc >= 0.0 && bb < 0.0 {
-                let surface = surface(x, y, w, h, &ray, cfg);
+                let surface = surface::<ELLIPSOID>(x, y, w, h, &ray, cfg, rays.model_geometry());
                 shade_surface(surface, cfg, loc)
             } else {
                 sky(&ray, cc, cfg)
@@ -300,15 +300,27 @@ fn render_pixels_into(
                 map: HashMap::default(),
             };
             for (offset, row) in rows.chunks_mut(row_bytes).enumerate() {
-                render_row(
-                    batch * ROWS_PER_TILE_BATCH + offset,
-                    w,
-                    h,
-                    &rays,
-                    cfg,
-                    &mut loc,
-                    row,
-                );
+                if basis.model == earthcraft_core::earth_model::EarthModel::PerfectSphere {
+                    render_row::<false>(
+                        batch * ROWS_PER_TILE_BATCH + offset,
+                        w,
+                        h,
+                        &rays,
+                        cfg,
+                        &mut loc,
+                        row,
+                    );
+                } else {
+                    render_row::<true>(
+                        batch * ROWS_PER_TILE_BATCH + offset,
+                        w,
+                        h,
+                        &rays,
+                        cfg,
+                        &mut loc,
+                        row,
+                    );
+                }
             }
             loc.map
                 .into_iter()

@@ -71,7 +71,14 @@ impl Bounds {
         farthest.dot(normal) + BOUNDS_EPSILON >= threshold
     }
     fn visible(self, basis: &Basis, rect: Rect) -> bool {
-        if !self.reaches(basis.c, 1.0) {
+        let geometry = basis.model.geometry();
+        let margin = geometry.displacement_bound();
+        let bounds = Self {
+            min: self.min - DVec3::splat(margin),
+            max: self.max + DVec3::splat(margin),
+        };
+        let horizon_camera = basis.c * geometry.inverse_axes_squared();
+        if !bounds.reaches(horizon_camera, 1.0) {
             return false;
         }
         let rotation = basis.rotation_from_view();
@@ -88,7 +95,7 @@ impl Bounds {
             forward * ty - rotation.y_axis,
         ]
         .iter()
-        .all(|normal| self.reaches(*normal, basis.c.dot(*normal)))
+        .all(|normal| bounds.reaches(*normal, basis.c.dot(*normal)))
     }
 }
 fn product(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
@@ -165,8 +172,12 @@ impl BoundaryIndex {
     pub fn visible(&self, basis: &Basis, rect: Rect) -> VisibleBoundaries {
         // The horizon's spherical cap lies inside this chord-radius box. The
         // packed 2D tree supplies candidates; 3D plane tests tighten the result.
-        let center = basis.c.normalize();
-        let radius = (2.0 - 2.0 / basis.c.length()).max(0.0).sqrt();
+        let geometry = basis.model.geometry();
+        let horizon_camera = basis.c * geometry.inverse_axes_squared();
+        let center = horizon_camera.normalize();
+        let threshold =
+            (1.0 / horizon_camera.length() - geometry.displacement_bound()).clamp(-1.0, 1.0);
+        let radius = (2.0 - 2.0 * threshold).max(0.0).sqrt();
         let Some(tree) = &self.tree else {
             return VisibleBoundaries {
                 ids: HashSet::new(),

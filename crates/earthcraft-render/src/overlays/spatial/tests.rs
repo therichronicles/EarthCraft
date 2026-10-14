@@ -1,5 +1,5 @@
 use super::*;
-use earthcraft_core::{camera::Cam, math::ll_to_v3};
+use earthcraft_core::camera::Cam;
 
 #[test]
 fn conservative_bounds_keep_visible_interiors_across_poles_dateline_and_horizon() {
@@ -18,38 +18,46 @@ fn conservative_bounds_keep_visible_interiors_across_poles_dateline_and_horizon(
         ..Default::default()
     };
     let index = BoundaryIndex::new(&data);
-    for latitude in [-89.9, -40.0, 0.0, 40.0, 89.9] {
-        for longitude in [-180.0, -90.0, 0.0, 90.0, 179.9] {
-            for altitude in [0.15, 500.0, 14000.0, 40000.0] {
-                for heading in [0.0, 90.0, 170.0] {
-                    let basis = Cam {
-                        lat: latitude,
-                        lon: longitude,
-                        alt: altitude,
-                        heading,
-                    }
-                    .basis(4.0 / 3.0);
-                    let rect = Rect::from_min_size(emath::Pos2::ZERO, emath::vec2(800.0, 600.0));
-                    let visible = index.visible(&basis, rect);
-                    for line in &lines {
-                        let bounds = Bounds::line(line);
-                        let (a, b) = (line[0], line[1]);
-                        let mut delta = b.1 - a.1;
-                        if delta > 180.0 {
-                            delta -= 360.0;
+    for model in earthcraft_core::earth_model::EarthModel::ALL {
+        for latitude in [-89.9, -40.0, 0.0, 40.0, 89.9] {
+            for longitude in [-180.0, -90.0, 0.0, 90.0, 179.9] {
+                for altitude in [0.15, 500.0, 14000.0, 40000.0] {
+                    for heading in [0.0, 90.0, 170.0] {
+                        let basis = Cam {
+                            lat: latitude,
+                            lon: longitude,
+                            alt: altitude,
+                            heading,
                         }
-                        if delta < -180.0 {
-                            delta += 360.0;
-                        }
-                        for step in 0..=200 {
-                            let t = step as f64 / 200.0;
-                            let point = ll_to_v3(a.0 + (b.0 - a.0) * t, a.1 + delta * t);
-                            assert!(point.cmpge(bounds.min).all() && point.cmple(bounds.max).all());
-                            if basis.project(point, rect).is_some_and(|p| rect.contains(p)) {
+                        .basis_for_model(4.0 / 3.0, model);
+                        let rect =
+                            Rect::from_min_size(emath::Pos2::ZERO, emath::vec2(800.0, 600.0));
+                        let visible = index.visible(&basis, rect);
+                        for line in &lines {
+                            let bounds = Bounds::line(line);
+                            let (a, b) = (line[0], line[1]);
+                            let mut delta = b.1 - a.1;
+                            if delta > 180.0 {
+                                delta -= 360.0;
+                            }
+                            if delta < -180.0 {
+                                delta += 360.0;
+                            }
+                            for step in 0..=200 {
+                                let t = step as f64 / 200.0;
+                                let point =
+                                    basis.surface_position(a.0 + (b.0 - a.0) * t, a.1 + delta * t);
+                                let margin = DVec3::splat(model.geometry().displacement_bound());
                                 assert!(
-                                    visible.ids.contains(&(Arc::as_ptr(line) as usize)),
-                                    "visible interpolation must survive culling"
+                                    point.cmpge(bounds.min - margin).all()
+                                        && point.cmple(bounds.max + margin).all()
                                 );
+                                if basis.project(point, rect).is_some_and(|p| rect.contains(p)) {
+                                    assert!(
+                                        visible.ids.contains(&(Arc::as_ptr(line) as usize)),
+                                        "visible interpolation must survive culling"
+                                    );
+                                }
                             }
                         }
                     }

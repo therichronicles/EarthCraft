@@ -94,8 +94,12 @@ Data owns JSON/XML decoding and longitude-first format adaptation. Invalid
 service coordinates are skipped; invalid KML coordinates return a typed error
 before an import completes or an export touches its destination. The editor adds/edits points through
 the same history. Input and editing preserve the stored f64 values without display
-rounding. Distances still use the existing 6,371.0088 km spherical Earth model;
-precise coordinate entry does not imply ellipsoidal or survey-grade accuracy.
+rounding. The default remains the 6,371.0088 km sphere. An experimental persisted
+WGS 84 (G2296) option routes camera, picking, rendering, geographic overlays and
+geodesics through core's Earth-model boundary; model changes invalidate compatible
+frame/overlay caches. See [Earth models](EARTH_MODELS.md) for supported calculations,
+reference-frame limits and extension points. Precise entry alone does not establish
+survey-grade accuracy.
 
 ## Async services and files
 

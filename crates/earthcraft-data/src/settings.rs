@@ -1,6 +1,6 @@
 mod writer;
 use crate::paths::{cache_dir, default_out_dir};
-use earthcraft_core::{language::Lang, units::RulerUnit};
+use earthcraft_core::{earth_model::EarthModel, language::Lang, units::RulerUnit};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 pub use writer::SettingsWriter;
@@ -53,8 +53,16 @@ pub struct Settings {
     pub grid_numbers: bool,
     pub hide_navigation_controls: bool,
     pub distance_units: UnitPreference,
+    #[serde(serialize_with = "serialize_earth_model")]
+    pub earth_model: EarthModel,
     #[serde(serialize_with = "serialize_ruler_unit")]
     pub ruler_unit: RulerUnit,
+}
+fn serialize_earth_model<S: serde::Serializer>(
+    model: &EarthModel,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(model.code())
 }
 fn serialize_ruler_unit<S: serde::Serializer>(
     unit: &RulerUnit,
@@ -73,6 +81,7 @@ impl Default for Settings {
             grid_numbers: false,
             hide_navigation_controls: false,
             distance_units: UnitPreference::System,
+            earth_model: EarthModel::default(),
             ruler_unit: RulerUnit::Automatic,
         }
     }
@@ -99,6 +108,8 @@ struct SettingsInput {
     #[serde(default, deserialize_with = "crate::json_fields::string")]
     distance_units: Option<String>,
     #[serde(default, deserialize_with = "crate::json_fields::string")]
+    earth_model: Option<String>,
+    #[serde(default, deserialize_with = "crate::json_fields::string")]
     ruler_unit: Option<String>,
 }
 impl Settings {
@@ -121,6 +132,9 @@ impl Settings {
         }
         if let Some(hide) = input.hide_navigation_controls {
             self.hide_navigation_controls = hide;
+        }
+        if let Some(model) = input.earth_model.as_deref().and_then(EarthModel::from_code) {
+            self.earth_model = model;
         }
         if let Some(units) = input.distance_units {
             self.distance_units = match units.as_str() {
@@ -149,6 +163,27 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn earth_models_roundtrip_and_tolerate_unknown_preferences() {
+        let mut settings = Settings::default();
+        assert_eq!(settings.earth_model, EarthModel::PerfectSphere);
+        for model in EarthModel::ALL {
+            settings.earth_model = model;
+            let mut restored = Settings::default();
+            restored
+                .apply_json(&serde_json::to_vec(&settings).unwrap())
+                .unwrap();
+            assert_eq!(restored.earth_model, model);
+            for bytes in [
+                br#"{}"#.as_slice(),
+                br#"{"earth_model":"unknown"}"#,
+                br#"{"earth_model":42}"#,
+            ] {
+                restored.apply_json(bytes).unwrap();
+                assert_eq!(restored.earth_model, model);
+            }
+        }
+    }
     #[test]
     fn grid_preference_roundtrips_and_tolerates_missing_or_invalid_fields() {
         let mut settings = Settings::default();
@@ -238,6 +273,7 @@ mod tests {
             grid_numbers: false,
             hide_navigation_controls: false,
             distance_units: UnitPreference::System,
+            earth_model: EarthModel::default(),
             ruler_unit: RulerUnit::Automatic,
         };
         settings

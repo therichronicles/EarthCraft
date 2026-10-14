@@ -131,7 +131,7 @@ impl App {
         rect: egui::Rect,
         pixels_per_point: f32,
     ) {
-        let basis = self.cam.basis(aspect);
+        let basis = self.cam.basis_for_model(aspect, self.active_earth_model());
         let grid_step = earthcraft_render::grid_step(self.cam.alt, w, h);
         let sun = if self.show_sun {
             let (la, lo) = subsolar(now_unix());

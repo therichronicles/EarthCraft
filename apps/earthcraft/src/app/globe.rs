@@ -132,13 +132,14 @@ impl App {
             self.touch();
         }
 
-        let basis = self.cam.basis(aspect);
+        let basis = self.cam.basis_for_model(aspect, self.active_earth_model());
         // ── rendering
         let idle = self.last_interact.elapsed() > IDLE_RENDER_DELAY && !resp.dragged();
         let render_aspect = (viewport.width() / viewport.height()) as f64;
         let (w, h) = earthcraft_render::view::raster_size(viewport.size(), ppp, idle);
         let keys = earthcraft_render::view::RasterView {
             camera: self.cam,
+            model: self.active_earth_model(),
             width: w,
             height: h,
             aspect: render_aspect,
@@ -297,14 +298,15 @@ impl App {
         }
 
         // scale bar
-        if let Some(scale_bar) = earthcraft_render::scale_bar::scale_bar_with_units(
+        if let Some(scale_bar) = self.scale_bar_cache.for_view(
+            &display_basis,
+            rect,
             display_cam.alt,
-            rect.height(),
             self.distance_units(),
         ) {
             let len = scale_bar.width_points;
-            let y = rect.bottom() - 28.0;
-            let x0 = rect.left() + 18.0;
+            let y = rect.bottom() - earthcraft_render::scale_bar::SCALE_BOTTOM_INSET_POINTS;
+            let x0 = rect.left() + earthcraft_render::scale_bar::SCALE_LEFT_INSET_POINTS;
             painter.line_segment(
                 [Pos2::new(x0, y), Pos2::new(x0 + len, y)],
                 Stroke::new(3.0_f32, Color32::BLACK),

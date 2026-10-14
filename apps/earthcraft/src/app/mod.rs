@@ -74,6 +74,7 @@ pub(crate) struct App {
     aircraft_overlay: live_layers::AircraftOverlay,
 
     renderer: rendering::Renderer,
+    scale_bar_cache: earthcraft_render::scale_bar::ScaleBarCache,
     texture: Option<egui::TextureHandle>,
     image: Option<(usize, usize, Arc<Vec<u8>>)>,
     last_state: u64,
@@ -177,6 +178,7 @@ impl App {
             fly: None,
             cache,
             renderer,
+            scale_bar_cache: earthcraft_render::scale_bar::ScaleBarCache::default(),
             provider: Provider::Satellite,
             tile_warmup: TileWarmup::startup_satellite(),
             cache_controls: cache::CacheControls::default(),

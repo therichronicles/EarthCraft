@@ -131,3 +131,5 @@ de arquivos nativos ou leitura de GPU compatíveis com WebAssembly. O frontend w
 ainda precisa de adaptadores de rede, armazenamento e execução do navegador.
 A projeção meteorológica e a construção das malhas mantêm seu agendamento atual;
 essa mudança não adiciona tarefas em segundo plano.
+
+O core oferece modelos da Terra separados da geometria: esfera perfeita por padrão e WGS 84 (G2296) experimental. Câmera, seleção, rasterização, sobreposições e geodésicas usam o modelo selecionado. A troca invalida quadros/caches incompatíveis; o elipsoide usa CPU. Consulte [Earth models](EARTH_MODELS.md) para limites de referencial/época e extensão.

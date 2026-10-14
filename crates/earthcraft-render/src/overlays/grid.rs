@@ -1,8 +1,5 @@
 //! Bounded label candidates for the raster's latitude/longitude graticule.
-use earthcraft_core::{
-    camera::Basis,
-    math::{ll_to_v3, v3_to_ll, wrap_lon},
-};
+use earthcraft_core::{camera::Basis, math::wrap_lon};
 use emath::{Pos2, Rect};
 use glam::DVec3;
 const VIEW_SAMPLES: usize = 16;
@@ -43,7 +40,7 @@ pub fn project_grid_labels(basis: &Basis, rect: Rect, step_deg: f64) -> Vec<Grid
     {
         return vec![];
     }
-    let (center_lat, center_lon) = v3_to_ll(basis.c.normalize());
+    let (center_lat, center_lon) = basis.geographic_center();
     let (lat, lon) = (center_lat.to_radians(), center_lon.to_radians());
     let east = DVec3::new(-lon.sin(), lon.cos(), 0.0);
     let north = DVec3::new(-lat.sin() * lon.cos(), -lat.sin() * lon.sin(), lat.cos());
@@ -108,7 +105,7 @@ pub fn project_grid_labels(basis: &Basis, rect: Rect, step_deg: f64) -> Vec<Grid
                     GridAxis::Latitude => (degrees, lon_min + (lon_max - lon_min) * t),
                     GridAxis::Longitude => (lat_min + (lat_max - lat_min) * t, degrees),
                 };
-                basis.project(ll_to_v3(lat, wrap_lon(lon)), rect)
+                basis.project(basis.surface_position(lat, wrap_lon(lon)), rect)
             };
             let signed_distance = |pos: Pos2| match edge {
                 GridLabelEdge::Left => pos.x - left_guide,
