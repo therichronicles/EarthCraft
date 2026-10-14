@@ -118,10 +118,10 @@ layers-sunlight-toggle = Luz do sol em tempo real (dia/noite)
 
 layers-auto-rotation-toggle = Girar automaticamente
 
-layers-flights-toggle = Aviões estilo FlightRadar (simulados)
+layers-flights-toggle = Aviões reais (OpenSky + ADSB.lol)
 layers-weather-toggle = Mapa do clima (radar de chuva ao vivo)
 layers-clouds-toggle = Mapa das nuvens por satélite (Matt Eason)
-layers-live-overlays-help = Nuvens de satélite a cada 3 horas; radar de chuva atualizado aproximadamente a cada 10 minutos (cobertura variável). Requer internet.
+layers-live-overlays-help = Aviões reais, com cobertura incompleta: atualização global a cada ~17 min e local a cada ~90 s. Nuvens ~3 h; radar de chuva ~10 min. Requer internet.
 
 navigation-section-title = Navegação
 

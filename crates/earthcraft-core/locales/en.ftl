@@ -118,10 +118,10 @@ layers-sunlight-toggle = Real-time sunlight (day/night)
 
 layers-auto-rotation-toggle = Auto-rotate
 
-layers-flights-toggle = FlightRadar-style aircraft (simulated)
+layers-flights-toggle = Real aircraft (OpenSky + ADSB.lol)
 layers-weather-toggle = Live precipitation radar (RainViewer)
 layers-clouds-toggle = Satellite cloud map (Matt Eason)
-layers-live-overlays-help = Live cloud imagery every 3 hours; recent weather radar every ~10 minutes (coverage varies). Internet required.
+layers-live-overlays-help = Aircraft positions come from live tracking (coverage incomplete); global updates ~17 min and nearby updates ~90 s. Cloud imagery ~3 h; rain radar ~10 min. Internet required.
 
 navigation-section-title = Navigation
 
