@@ -137,6 +137,14 @@ impl App {
                                 lg.text("layers-auto-rotation-toggle"),
                             );
                             ui.checkbox(&mut self.show_flights, lg.text("layers-flights-toggle"));
+                            if self.show_flights {
+                                ui.small(
+                                    self.live_aircraft
+                                        .status(lg == earthcraft_core::language::Lang::PtBr),
+                                );
+                                ui.hyperlink_to("OpenSky Network", "https://opensky-network.org/");
+                                ui.hyperlink_to("ADSB.lol (ODbL)", "https://www.adsb.lol/");
+                            }
                             ui.checkbox(&mut self.show_weather, lg.text("layers-weather-toggle"));
                             ui.checkbox(&mut self.show_clouds, lg.text("layers-clouds-toggle"));
                             ui.small(lg.text("layers-live-overlays-help"));

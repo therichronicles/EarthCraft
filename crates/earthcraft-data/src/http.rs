@@ -24,6 +24,7 @@ pub(crate) enum Policy {
     Suggest,
     Cloud,
     Radar,
+    Aircraft,
 }
 pub(crate) fn client(policy: Policy) -> Result<reqwest::Client, crate::Error> {
     use std::{
@@ -46,6 +47,7 @@ pub(crate) fn client(policy: Policy) -> Result<reqwest::Client, crate::Error> {
         Policy::Suggest => "EarthCraft/0.2 (search suggestions)",
         Policy::Cloud => "EarthCraft/1.0 (attribution: Matt Eason, EUMETSAT)",
         Policy::Radar => "EarthCraft/1.0 radar viewer",
+        Policy::Aircraft => "EarthCraft/1.0 (live aircraft viewer; OpenSky / ADSB.lol)",
     };
     builder = builder.user_agent(agent);
     match policy {
@@ -63,6 +65,7 @@ pub(crate) fn client(policy: Policy) -> Result<reqwest::Client, crate::Error> {
         Policy::Suggest => builder = builder.timeout(Duration::from_secs(8)),
         Policy::Cloud => builder = builder.timeout(Duration::from_secs(65)),
         Policy::Radar => builder = builder.timeout(Duration::from_secs(12)),
+        Policy::Aircraft => builder = builder.timeout(Duration::from_secs(25)),
         Policy::Search => {}
     }
     let client = builder.build()?;

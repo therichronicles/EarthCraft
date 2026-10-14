@@ -24,7 +24,6 @@ pub const MAX_CAMERA_LATITUDE_DEG: f64 = 89.9;
 
 pub mod flight;
 
-pub mod aircraft;
 pub mod body;
 
 pub mod units;

@@ -70,6 +70,7 @@ pub(crate) struct App {
     show_weather: bool,
     show_clouds: bool,
     live_maps: live_maps::LiveMaps,
+    live_aircraft: earthcraft_data::aircraft::LiveAircraft,
 
     renderer: rendering::Renderer,
     texture: Option<egui::TextureHandle>,
@@ -200,6 +201,7 @@ impl App {
             show_weather: false,
             show_clouds: false,
             live_maps: live_maps::LiveMaps::default(),
+            live_aircraft: earthcraft_data::aircraft::LiveAircraft::default(),
             texture: None,
             image: None,
             last_state: 0,
@@ -322,6 +324,18 @@ impl eframe::App for App {
         self.ruler_points_window(ui);
         self.live_maps
             .update(ui, &self.runtime, self.show_clouds, self.show_weather);
+        let aircraft_wake = egui::Context::clone(ui);
+        self.live_aircraft.update(
+            &self.runtime,
+            self.show_flights,
+            self.cam.lat,
+            self.cam.lon,
+            self.cam.alt,
+            move || aircraft_wake.request_repaint(),
+        );
+        if self.show_flights {
+            ui.request_repaint_after(Duration::from_secs(15));
+        }
         self.boundary_loader.request_visible_layers(
             self.show_city_boundaries,
             self.show_metro_boundaries,
