@@ -9,6 +9,7 @@
 )]
 
 mod app;
+mod presentation;
 use app::App;
 use eframe::egui;
 const INITIAL_WINDOW_SIZE_POINTS: [f32; 2] = [1280.0, 800.0];
@@ -34,11 +35,9 @@ fn main() -> Result<(), eframe::Error> {
     }
     let options = eframe::NativeOptions {
         viewport,
-        glow_options: eframe::egui_glow::GlowConfiguration {
-            vsync: !earthcraft_data::settings::Settings::load().uncap_fps,
-            ..Default::default()
-        },
-        renderer: eframe::Renderer::Glow,
+        wgpu_options: presentation::configuration(
+            earthcraft_data::settings::Settings::load().uncap_fps,
+        ),
         ..Default::default()
     };
     eframe::run_native(

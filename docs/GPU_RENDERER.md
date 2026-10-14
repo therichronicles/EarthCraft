@@ -7,6 +7,9 @@ alongside the CPU renderer.
 The experimental renderer ray-casts the overview globe, calculates Mercator coordinates and LOD, samples
 imagery, blends zoom levels, and applies sunlight and atmosphere on the GPU.
 The render crate owns it; the egui presentation backend stays in the app.
+The desktop uses eframe's default wgpu presentation independently of globe
+computation, including in CPU-only globe builds. Upstream graphics backend
+fallbacks remain enabled. This UI backend does not accelerate CPU globe calculations.
 Adapter/device creation, texture uploads, execution and readback run on the frame
 coordinator, never on the UI thread.
 
@@ -20,7 +23,7 @@ must not return until native cross-platform checks cover the reported failure.
 views with at least 262,144 pixels; small frames retain CPU rendering because
 complete GPU/CPU timings were similar at 512×384 on the baseline adapter.
 `EARTHCRAFT_RENDERER=gpu` also tries GPU rendering for small supported frames.
-`EARTHCRAFT_RENDERER=cpu` skips GPU initialization entirely.
+`EARTHCRAFT_RENDERER=cpu` skips experimental globe GPU initialization.
 
 GPU rendering currently requires altitude of at least 1,000 km, no geographic
 grid, at most 4 million pixels, and a checked LOD bound of zoom 10 or lower.
@@ -42,13 +45,14 @@ driver call. Restarting permits another
 initialization attempt. An oversized tile working set or unusual tile dimensions
 uses CPU rendering for that view, preserving the general sampler.
 
-For a desktop build without wgpu:
+For a desktop build without experimental GPU globe rendering:
 
 ```sh
 cargo build -p earthcraft --no-default-features --locked
 ```
 
-CPU globe rendering still requires a working graphics driver for the native UI.
+CPU globe rendering still uses wgpu presentation and requires a working graphics
+driver for the native UI.
 
 ## Resource ownership and presentation
 

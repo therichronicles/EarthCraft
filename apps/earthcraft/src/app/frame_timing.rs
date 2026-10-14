@@ -36,12 +36,9 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    deltas.push((
-                        animation_delta_secs(ui.ctx()),
-                        navigation_delta_secs(ui.ctx()),
-                    ));
-                    if ui.ctx().current_pass_index() == 0 {
-                        ui.ctx().request_discard("exercise repeated layout");
+                    deltas.push((animation_delta_secs(ui), navigation_delta_secs(ui)));
+                    if ui.current_pass_index() == 0 {
+                        ui.request_discard("exercise repeated layout");
                     }
                 },
             );

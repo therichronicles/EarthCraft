@@ -22,7 +22,7 @@ const TILE_REDRAW_INTERVAL: Duration = Duration::from_millis(60);
 const OVERVIEW_WARMUP_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 impl App {
-    pub(super) fn globe_view(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    pub(super) fn globe_view(&mut self, ui: &mut egui::Ui) {
         let lg = self.lang;
         let viewport = ui.available_rect_before_wrap();
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
@@ -32,16 +32,16 @@ impl App {
             Sense::click_and_drag()
         };
         let resp = ui.allocate_rect(viewport, sense);
-        let ppp = ctx.pixels_per_point();
+        let ppp = ui.pixels_per_point();
         let aspect = (rect.width() / rect.height()) as f64;
-        let shift = ctx.input(|i| i.modifiers.shift);
+        let shift = ui.input(|i| i.modifiers.shift);
 
-        let ruler_captured = self.edit_ruler(ui, ctx, &resp, rect, aspect);
+        let ruler_captured = self.edit_ruler(ui, &resp, rect, aspect);
 
         // ── input
         let mut interacting = false;
         if !ruler_captured && resp.dragged_by(PointerButton::Primary) && !shift {
-            let d = ctx.input(|i| i.pointer.delta());
+            let d = ui.input(|i| i.pointer.delta());
             self.fly = None;
             if self.explorer.active == earthcraft_core::body::Body::Earth {
                 self.pan(d.x as f64, d.y as f64, rect.height());
@@ -53,14 +53,14 @@ impl App {
             && (resp.dragged_by(PointerButton::Secondary)
                 || (resp.dragged_by(PointerButton::Primary) && shift))
         {
-            let drag = ctx.input(|i| i.pointer.delta());
+            let drag = ui.input(|i| i.pointer.delta());
             self.cam.heading =
                 wrap_lon(self.cam.heading - drag.x as f64 * DRAG_HEADING_DEG_PER_POINT);
             interacting = true;
         }
         if resp.hovered() {
-            let sc = ctx.input(|i| i.smooth_scroll_delta.y) as f64;
-            let zd = ctx.input(|i| i.zoom_delta()) as f64;
+            let sc = ui.input(|i| i.smooth_scroll_delta.y) as f64;
+            let zd = ui.input(|i| i.zoom_delta()) as f64;
             let cur = resp.hover_pos();
             if sc != 0.0 {
                 self.fly = None;
@@ -82,11 +82,11 @@ impl App {
                 interacting = true;
             }
         }
-        if !ctx.egui_wants_keyboard_input() {
-            let dt = super::frame_timing::animation_delta_secs(ctx);
+        if !ui.egui_wants_keyboard_input() {
+            let dt = super::frame_timing::animation_delta_secs(ui);
             let sp = PAN_SPEED_POINTS_PER_SECOND * dt;
             let (mut dx, mut dy) = (0.0, 0.0);
-            ctx.input(|i| {
+            ui.input(|i| {
                 if i.key_down(Key::ArrowLeft) {
                     dx += sp;
                 }
@@ -109,7 +109,7 @@ impl App {
                 }
                 interacting = true;
             }
-            let (zin, zout, north) = ctx.input(|i| {
+            let (zin, zout, north) = ui.input(|i| {
                 (
                     i.key_down(Key::Plus) || i.key_down(Key::Equals) || i.key_down(Key::PageUp),
                     i.key_down(Key::Minus) || i.key_down(Key::PageDown),
@@ -155,7 +155,7 @@ impl App {
         // Keep the displayed view stable while the sidebar changes the viewport.
         // A running job may finish, but publication/submission resume only at rest.
         if !self.sidebar_animating {
-            self.poll_render(presentation, ctx);
+            self.poll_render(presentation, ui);
         }
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
 
@@ -203,7 +203,7 @@ impl App {
             && self.texture.is_some()
             && self.last_render.elapsed() < TILE_REDRAW_INTERVAL
         {
-            ctx.request_repaint_after(TILE_REDRAW_INTERVAL);
+            ui.request_repaint_after(TILE_REDRAW_INTERVAL);
             need = false;
         }
         if need && !self.sidebar_animating {
@@ -214,13 +214,13 @@ impl App {
         }
         if state == self.last_state && self.renderer.is_idle() {
             self.renderer
-                .refill_requests(&self.cache, generation != self.last_gen, ctx);
+                .refill_requests(&self.cache, generation != self.last_gen, ui);
         }
         if !self.sidebar_animating {
             self.last_gen = generation;
         }
         if !idle {
-            ctx.request_repaint();
+            ui.request_repaint();
         }
         // The frame worker admits visible tiles before becoming idle. Speculative
         // work waits for it, and pauses during interaction/closer zoom/other layers.
@@ -230,7 +230,7 @@ impl App {
             && self.cam.alt >= INITIAL_CAMERA.alt
             && self.tile_warmup.pump(&self.cache)
         {
-            ctx.request_repaint_after(OVERVIEW_WARMUP_POLL_INTERVAL);
+            ui.request_repaint_after(OVERVIEW_WARMUP_POLL_INTERVAL);
         }
 
         // ── drawing
@@ -290,10 +290,10 @@ impl App {
         }
 
         // Google Earth style navigation controls (rotate / move / zoom)
-        let dt_nav = super::frame_timing::navigation_delta_secs(ctx);
+        let dt_nav = super::frame_timing::navigation_delta_secs(ui);
         if self.nav_controls(ui, rect, dt_nav) {
             self.touch();
-            ctx.request_repaint();
+            ui.request_repaint();
         }
 
         // scale bar
@@ -419,16 +419,16 @@ impl App {
                     self.ruler = true;
                     self.ruler_paths.add_point((la, lo), false);
                 }
-                _ => ctx.copy_text(format!("{la:.6}, {lo:.6}")),
+                _ => ui.copy_text(format!("{la:.6}, {lo:.6}")),
             }
         }
 
         // auto-rotate (keeps repainting)
         if self.auto_rotate && self.fly.is_none() && !ruler_captured {
-            let dt = super::frame_timing::animation_delta_secs(ctx);
+            let dt = super::frame_timing::animation_delta_secs(ui);
             self.cam.lon = wrap_lon(self.cam.lon + AUTO_ROTATE_DEG_PER_SECOND * dt);
             self.touch();
-            ctx.request_repaint();
+            ui.request_repaint();
         }
     }
 }

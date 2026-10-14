@@ -27,9 +27,12 @@ package metadata and build profiles; `Cargo.lock` pins resolved dependencies.
 
 ## Rendering and UI
 
-The desktop uses eframe/egui/emath 0.36 with the OpenGL (`glow`) UI backend
-explicitly selected. Background completion polling runs in `App::logic`, including
-while hidden; panels and widgets run in `App::ui` using the root UI. The optional
+The desktop uses eframe/egui/emath 0.36 with eframe's default wgpu UI backend
+and upstream graphics backend fallbacks. The saved Uncap FPS preference selects
+automatic non-vsync presentation at startup; other presentation defaults remain
+unchanged. Background completion polling runs in `App::logic`, including
+while hidden; panels and widgets run in `App::ui` using the root UI, which also
+provides context access through dereferencing. The optional
 compute renderer uses wgpu 30 independently of the UI backend, with shader tests
 using its matching `wgpu::naga` re-export. The workspace requires Rust 1.95 and uses Edition 2024 with Cargo resolver 3.
 Fixed-size geographic segments use array windows without changing arithmetic

@@ -11,7 +11,6 @@ impl App {
     pub(super) fn edit_ruler(
         &mut self,
         ui: &egui::Ui,
-        ctx: &egui::Context,
         response: &egui::Response,
         rect: Rect,
         aspect: f64,
@@ -25,7 +24,7 @@ impl App {
             return false;
         }
         let basis = self.renderer.picking_basis(self.cam.basis(aspect));
-        let pointer = ctx.input(|i| i.pointer.interact_pos());
+        let pointer = ui.input(|i| i.pointer.interact_pos());
         let hovered = pointer
             .filter(|p| response.hovered() && rect.contains(*p))
             .and_then(|p| {
@@ -38,7 +37,7 @@ impl App {
                 )
             });
         if hovered.is_some() || self.ruler_drag.is_some() {
-            let starting_path = ctx.input(|i| i.modifiers.alt) && self.ruler_drag.is_none();
+            let starting_path = ui.input(|i| i.modifiers.alt) && self.ruler_drag.is_none();
             ui.output_mut(|o| {
                 o.cursor_icon = if starting_path {
                     egui::CursorIcon::Crosshair
@@ -47,8 +46,8 @@ impl App {
                 }
             });
         }
-        if let Some(index) = hovered.filter(|_| !ctx.egui_wants_keyboard_input())
-            && ctx.input_mut(|i| {
+        if let Some(index) = hovered.filter(|_| !ui.egui_wants_keyboard_input())
+            && ui.input_mut(|i| {
                 i.consume_key(egui::Modifiers::NONE, Key::Delete)
                     || i.consume_key(egui::Modifiers::NONE, Key::Backspace)
             })
@@ -57,7 +56,7 @@ impl App {
             self.ruler_drag = None;
             return true;
         }
-        if ctx.input(|i| i.pointer.primary_pressed()) {
+        if ui.input(|i| i.pointer.primary_pressed()) {
             self.ruler_drag = pressed_handle(response, &basis, rect, &self.ruler_paths);
             if self.ruler_drag.is_some() {
                 self.ruler_paths.begin_move();
@@ -77,9 +76,9 @@ impl App {
                 self.ruler_paths.move_point(index, point);
             }
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
-            ctx.request_repaint();
+            ui.request_repaint();
         }
-        if !ctx.input(|i| i.pointer.primary_down()) {
+        if !ui.input(|i| i.pointer.primary_down()) {
             self.ruler_paths.end_move();
             self.ruler_drag = None;
         }

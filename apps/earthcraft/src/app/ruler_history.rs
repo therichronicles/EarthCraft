@@ -134,7 +134,7 @@ mod tests {
                             ..Default::default()
                         },
                         |ui| {
-                            let ctx = &ui.ctx().clone();
+                            let ctx: &egui::Context = ui;
                             command = consume_shortcut(ctx);
                             if text_focus {
                                 egui::CentralPanel::default().show(ui, |ui| {

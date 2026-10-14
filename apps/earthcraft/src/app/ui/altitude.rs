@@ -133,7 +133,7 @@ mod tests {
         let mut editor =
             AltitudeEditor::new(14000.0, DistanceUnits::Metric, egui::pos2(100.0, 300.0));
         let _ = crate::app::test_ui::run(&ctx, egui::RawInput::default(), |ui| {
-            let ctx = &ui.ctx().clone();
+            let ctx: &egui::Context = ui;
             editor.show(ctx, Lang::En);
         });
         let mut result = Action::Pending;
@@ -153,7 +153,7 @@ mod tests {
                 ..Default::default()
             },
             |ui| {
-                let ctx = &ui.ctx().clone();
+                let ctx: &egui::Context = ui;
                 result = editor.show(ctx, Lang::En);
             },
         );
@@ -186,7 +186,7 @@ mod tests {
                 ..Default::default()
             },
             |ui| {
-                let ctx = &ui.ctx().clone();
+                let ctx: &egui::Context = ui;
                 result = editor.show(ctx, Lang::PtBr);
             },
         );

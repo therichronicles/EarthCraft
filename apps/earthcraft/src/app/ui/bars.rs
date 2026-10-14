@@ -4,12 +4,11 @@ use eframe::egui::{self, Key, Rect};
 use emath::GuiRounding;
 impl App {
     pub(in crate::app) fn top_bar(&mut self, ui: &mut egui::Ui) {
-        let ctx = &ui.ctx().clone();
         let lg = self.lang;
         let mut field_rect = Rect::NOTHING;
         const BAR_MARGIN_POINTS: egui::Margin = egui::Margin::symmetric(8, 4);
         egui::Panel::top("top")
-            .frame(egui::Frame::side_top_panel(&ctx.global_style()).inner_margin(BAR_MARGIN_POINTS))
+            .frame(egui::Frame::side_top_panel(&ui.global_style()).inner_margin(BAR_MARGIN_POINTS))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let sidebar_hint = if self.sidebar_open {
@@ -32,7 +31,7 @@ impl App {
                         ),
                     ] {
                         if ui.button(name).clicked() {
-                            self.explorer.choose(body, ctx);
+                            self.explorer.choose(body, ui);
                             if body == earthcraft_core::body::Body::Custom {
                                 self.explorer.open = true;
                             }
@@ -45,7 +44,7 @@ impl App {
                     let popup = self.sugg_open && !self.suggestions.is_empty();
                     let (mut down, mut up, mut esc) = (false, false, false);
                     if popup {
-                        ctx.input_mut(|i| {
+                        ui.input_mut(|i| {
                             down = i.consume_key(egui::Modifiers::NONE, Key::ArrowDown);
                             up = i.consume_key(egui::Modifiers::NONE, Key::ArrowUp);
                             esc = i.consume_key(egui::Modifiers::NONE, Key::Escape);
@@ -83,13 +82,13 @@ impl App {
                             (true, Some(i)) => self.choose_suggestion(i),
                             _ => {
                                 self.sugg_open = false;
-                                self.start_search(ctx);
+                                self.start_search(ui);
                             }
                         }
                     }
                     if ui.button(lg.text("search-submit-action")).clicked() {
                         self.sugg_open = false;
-                        self.start_search(ctx);
+                        self.start_search(ui);
                     }
                     ui.separator();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -140,12 +139,11 @@ impl App {
                     });
                 });
             });
-        self.suggestion_popup(ctx, field_rect);
+        self.suggestion_popup(ui, field_rect);
     }
 
     /// Status below the map.
     pub(in crate::app) fn bottom_bar(&mut self, ui: &mut egui::Ui) {
-        let ctx = &ui.ctx().clone();
         let lg = self.lang;
         egui::Panel::bottom("bottom").show(ui, |ui| {
             let bounds = ui.available_rect_before_wrap();
@@ -170,16 +168,16 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
                     let sidebar_right =
-                        egui::containers::panel::PanelState::load(ctx, egui::Id::new("side"))
+                        egui::containers::panel::PanelState::load(ui, egui::Id::new("side"))
                             .map_or(
-                                ctx.content_rect().left()
+                                ui.content_rect().left()
                                     + super::sidebar::DEFAULT_SIDEBAR_WIDTH_POINTS,
                                 |state| state.outer_rect.right(),
                             );
                     // Keep the cursor divider on the inner edge of the sidebar separator.
                     const SIDEBAR_SEPARATOR_INSET_POINTS: f32 = 1.0;
                     let sidebar_border_x = (sidebar_right - SIDEBAR_SEPARATOR_INSET_POINTS)
-                        .round_to_pixels(ctx.pixels_per_point());
+                        .round_to_pixels(ui.pixels_per_point());
                     super::cursor::cursor_readout(ui, self.cursor, sidebar_border_x);
                     ui.monospace(lg.format(
                         "statusbar-camera-center",
@@ -227,7 +225,7 @@ impl App {
                     self.cam.heading = 0.0;
                     self.fly = None;
                     self.touch();
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
             });
         });

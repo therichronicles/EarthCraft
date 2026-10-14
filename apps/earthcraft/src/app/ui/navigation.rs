@@ -111,7 +111,7 @@ impl App {
             && self.ring_drag
             && let Some(cur) = ring.interact_pointer_pos()
         {
-            let prev = cur - ui.ctx().input(|i| i.pointer.delta());
+            let prev = cur - ui.input(|i| i.pointer.delta());
             let ang = |v: Vec2| v.y.atan2(v.x);
             let mut d = ang(cur - c1) - ang(prev - c1);
             if d > std::f32::consts::PI {
@@ -211,7 +211,7 @@ impl App {
             Sense::drag(),
         );
         if center.dragged() {
-            let d = ui.ctx().input(|i| i.pointer.delta());
+            let d = ui.input(|i| i.pointer.delta());
             self.fly = None;
             self.pan(d.x as f64, d.y as f64, rect.height());
             active = true;

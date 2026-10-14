@@ -299,7 +299,7 @@ mod tests {
         for lang in Lang::ALL {
             let mut editor = PointEditor::new((0.0, 0.0));
             let _ = crate::app::test_ui::run(&ctx, egui::RawInput::default(), |ui| {
-                let ctx = &ui.ctx().clone();
+                let ctx: &egui::Context = ui;
                 assert_eq!(editor.show(ctx, &ruler, lang), Action::Pending);
             });
             let _ = crate::app::test_ui::run(
@@ -314,7 +314,7 @@ mod tests {
                     }],
                     ..Default::default()
                 },
-                |ui| assert_eq!(editor.show(ui.ctx(), &ruler, lang), Action::Close),
+                |ui| assert_eq!(editor.show(ui, &ruler, lang), Action::Close),
             );
             assert_eq!(ruler.point_count(), 1);
         }

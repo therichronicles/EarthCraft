@@ -78,11 +78,12 @@ The dependency review verified these concrete uses:
   sys-locale and winresource remain platform adapters.
 
 New APIs are adopted where they improve correctness or express the existing work.
-Optional GPU-only features, a different presentation backend, zero-copy GPU
-presentation and speculative math changes require separate measured work; newer
+The desktop now uses eframe's default wgpu presentation with upstream backend
+fallbacks; its saved Uncap FPS option changes only the presentation mode at startup.
+Optional GPU-only features, zero-copy GPU presentation and speculative math changes require separate measured work; newer
 version numbers alone are not evidence that those changes would improve this app.
 
-Verification: 173 default tests and 174 with profiling passed, along with strict
+Verification: 174 default tests and 175 with profiling passed, along with strict
 Clippy, the workspace build, CPU-only Clippy and an all-target Rust 1.95 check.
 Native Metal parity and device-loss fallback passed after the migration. The warm
 frame check retained a maximum channel difference of 1 and passed 597-tile

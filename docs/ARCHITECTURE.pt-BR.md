@@ -82,6 +82,10 @@ representam automaticamente FPS da aplicação.
 
 ## Experimental GPU Earth rasterization / renderização experimental em GPU
 
+A interface usa o backend wgpu padrão do eframe, com os fallbacks gráficos
+originais habilitados, independentemente do cálculo do globo na CPU ou GPU.
+A preferência de FPS sem limite altera o modo de apresentação na inicialização.
+
 The Earth overview raster can be computed by the `earthcraft-render` `backend`
 module with `wgpu` compute shaders (`gpu/`), then read back for the existing
 egui view. All GPU globe rendering is experimental on every platform; the CPU

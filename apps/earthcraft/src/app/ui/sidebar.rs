@@ -6,9 +6,8 @@ use eframe::egui::{self, Color32, Key, Stroke};
 pub(super) const DEFAULT_SIDEBAR_WIDTH_POINTS: f32 = 270.0;
 impl App {
     pub(in crate::app) fn side_panel(&mut self, ui: &mut egui::Ui) {
-        let ctx = &ui.ctx().clone();
         let openness =
-            ctx.animate_bool_responsive(egui::Id::new("side").with("animation"), self.sidebar_open);
+            ui.animate_bool_responsive(egui::Id::new("side").with("animation"), self.sidebar_open);
         self.sidebar_animating = openness != if self.sidebar_open { 1.0 } else { 0.0 };
         let mut expanded = self.sidebar_open;
         let lg = self.lang;
@@ -234,7 +233,7 @@ impl App {
                             }
                             ui.separator();
                             // Drop zone: drag a .kml file from the file manager onto this box.
-                            let hovering_file = ctx.input(|i| !i.raw.hovered_files.is_empty());
+                            let hovering_file = ui.input(|i| !i.raw.hovered_files.is_empty());
                             let (stroke_col, fill) = if hovering_file {
                                 (
                                     Color32::from_rgb(90, 170, 255),
@@ -364,7 +363,7 @@ impl App {
                                         .add_enabled(enabled, egui::Button::new(lg.text(label)))
                                         .clicked()
                                     {
-                                        self.apply_ruler_history(command, ctx);
+                                        self.apply_ruler_history(command, ui);
                                     }
                                 }
                             });

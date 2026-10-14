@@ -268,7 +268,7 @@ impl App {
 }
 impl eframe::App for App {
     #[cfg(feature = "profiling")]
-    fn on_exit(&mut self, _: Option<&eframe::glow::Context>) {
+    fn on_exit(&mut self) {
         earthcraft_data::profiling::flush();
     }
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -289,16 +289,15 @@ impl eframe::App for App {
         }
     }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = &ui.ctx().clone();
         #[cfg(feature = "profiling")]
         let mut profile = earthcraft_data::profiling::Span::new("ui.update");
-        let dt = frame_timing::animation_delta_secs(ctx);
+        let dt = frame_timing::animation_delta_secs(ui);
         if (self.settings.ui_scale - self.applied_ui_scale).abs() > 1e-4 {
-            ui::apply_ui_scale(ctx, self.settings.ui_scale);
+            ui::apply_ui_scale(ui, self.settings.ui_scale);
             self.applied_ui_scale = self.settings.ui_scale;
         }
         // persist settings once a slider is released
-        if self.settings != self.saved_settings && !ctx.input(|i| i.pointer.any_down()) {
+        if self.settings != self.saved_settings && !ui.input(|i| i.pointer.any_down()) {
             self.settings_writer.settings(&self.settings);
             self.saved_settings = self.settings.clone();
         }
@@ -306,24 +305,24 @@ impl eframe::App for App {
             self.status = format!("Settings persistence failed: {error}");
         }
         #[cfg(target_os = "macos")]
-        self.poll_native_menu(ctx);
+        self.poll_native_menu(ui);
         #[cfg(not(target_os = "macos"))]
-        self.file_shortcuts(ctx);
-        self.ruler_shortcuts(ctx);
-        self.handle_dropped_files(ctx);
+        self.file_shortcuts(ui);
+        self.ruler_shortcuts(ui);
+        self.handle_dropped_files(ui);
         self.step_fly(dt);
         if self.fly.is_some() {
-            ctx.request_repaint();
+            ui.request_repaint();
         }
         self.top_bar(ui);
         self.bottom_bar(ui);
         self.side_panel(ui);
-        self.settings_window(ctx);
-        self.explorer_window(ctx);
-        self.altitude_window(ctx);
-        self.ruler_points_window(ctx);
+        self.settings_window(ui);
+        self.explorer_window(ui);
+        self.altitude_window(ui);
+        self.ruler_points_window(ui);
         self.live_maps
-            .update(ctx, &self.runtime, self.show_clouds, self.show_weather);
+            .update(ui, &self.runtime, self.show_clouds, self.show_weather);
         self.boundary_loader.request_visible_layers(
             self.show_city_boundaries,
             self.show_metro_boundaries,
@@ -331,13 +330,13 @@ impl eframe::App for App {
             self.cam.alt,
         );
         if self.boundary_loader.is_loading() {
-            ctx.request_repaint_after(BOUNDARY_POLL_INTERVAL);
+            ui.request_repaint_after(BOUNDARY_POLL_INTERVAL);
         }
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ui, |ui| self.globe_view(ui, ctx));
+            .show(ui, |ui| self.globe_view(ui));
         #[cfg(target_os = "macos")]
-        self.refresh_native_menu(ctx);
+        self.refresh_native_menu(ui);
         #[cfg(feature = "profiling")]
         {
             profile.values.inflight = self.cache.inflight();

@@ -57,7 +57,7 @@ mod tests {
         for lang in Lang::ALL {
             let ctx = egui::Context::default();
             let output = crate::app::test_ui::run(&ctx, egui::RawInput::default(), |ui| {
-                let ctx = &ui.ctx().clone();
+                let ctx: &egui::Context = ui;
                 draw_cardinals(
                     &ctx.layer_painter(egui::LayerId::background()),
                     Pos2::new(100.0, 100.0),
