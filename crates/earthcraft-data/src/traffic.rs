@@ -254,6 +254,9 @@ mod tests {
             loaded: Instant::now(),
         };
         assert!(t.sample(0.0, 0.0).is_some());
-        assert!(t.sample(-80.0, 0.0).is_none());
+        // At zoom 2, rows 1..4 include the southern hemisphere down to -85 degrees.
+        assert!(t.sample(-80.0, 0.0).is_some());
+        assert!(t.sample(80.0, 0.0).is_none());
+        assert!(t.sample(-85.0, 0.0).is_none());
     }
 }

@@ -87,13 +87,13 @@ fn all_original_labels_keep_exact_wording_and_help_newlines() {
     .unwrap();
     for (id, values) in fixture.as_object().unwrap() {
         for lang in Lang::ALL {
-            // Upstream 0c75953 intentionally clarified this label after the fixture.
+            // Upstream added worldwide OSM municipal borders after the original fixture.
             let expected = match (id.as_str(), lang) {
                 ("layers-municipal-borders-toggle", Lang::En) => {
-                    "City / municipality borders (Brazil only)"
+                    "Municipal borders worldwide (OSM), Brazil (IBGE)"
                 }
                 ("layers-municipal-borders-toggle", Lang::PtBr) => {
-                    "Limites de cidades / municípios (disponível apenas para o Brasil)"
+                    "Limites de municípios do mundo (OSM) e Brasil (IBGE)"
                 }
                 _ => values[lang.code()].as_str().unwrap(),
             };

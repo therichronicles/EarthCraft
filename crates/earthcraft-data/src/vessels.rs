@@ -291,9 +291,10 @@ mod tests {
     #[test]
     fn geojson_preserves_external_timestamp() {
         let input = serde_json::json!({"features":[{"geometry":{"coordinates":[24.93,60.15]},
-            "properties":{"mmsi":123456789,"sog":12.5,"cog":32,"timestampExternal":1_000_000}}]});
-        let v = parse_ais_geojson(&input, 1002.0);
+            "properties":{"mmsi":123456789,"sog":12.5,"cog":32,"timestampExternal":1_800_000_000_000u64}}]});
+        let v = parse_ais_geojson(&input, 1_800_000_002.0);
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].speed_knots, Some(12.5));
+        assert_eq!(v[0].observed_unix, 1_800_000_000.0);
     }
 }
