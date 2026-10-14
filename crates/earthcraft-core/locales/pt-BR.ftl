@@ -1,12 +1,12 @@
 # Embedded UI catalog. Keep keys and variables in sync across locales.
 
-kml-open-dialog-title = Abrir KML
+kml-open-dialog-title = Abrir KML ou KMZ
 
-kml-save-dialog-title = Salvar KML como
+kml-save-dialog-title = Salvar KML ou KMZ como
 
 screenshot-empty-error = Nada para salvar ainda.
 
-kml-drop-type-error = Só é possível soltar arquivos .kml aqui.
+kml-drop-type-error = Só é possível soltar arquivos .kml ou .kmz aqui.
 
 globe-placemark-action = 📍 Adicionar local aqui
 
@@ -70,9 +70,9 @@ settings-screenshot-folder-label = Capturas de tela (PNG):
 
 settings-screenshot-folder-dialog-title = Pasta das capturas
 
-settings-kml-folder-label = Arquivos KML:
+settings-kml-folder-label = Arquivos KML/KMZ:
 
-settings-kml-folder-dialog-title = Pasta dos KML
+settings-kml-folder-dialog-title = Pasta dos KML/KMZ
 
 settings-folder-creation-help = As pastas são criadas automaticamente ao salvar.
 
@@ -147,15 +147,15 @@ placemarks-add-center-action = ➕ No centro
 
 placemarks-fly-to-action = Ir
 
-kml-drop-zone-hint = 📥 Arraste um arquivo .kml aqui
+kml-drop-zone-hint = 📥 Arraste um arquivo .kml ou .kmz aqui
 
 kml-save-action = 💾 Salvar
 
-kml-save-tooltip = Salva na pasta de KML (veja Configurações)
+kml-save-tooltip = Salva na pasta de KML/KMZ (veja Configurações)
 
 kml-save-as-action = 💾 Salvar como…
 
-kml-open-action = 📂 Abrir KML…
+kml-open-action = 📂 Abrir KML/KMZ…
 
 ruler-section-title = Régua
 
@@ -302,9 +302,9 @@ live-radar-credit = Radar de precipitação: RainViewer (rainviewer.com)
 
 # Native desktop menus
 menu-file-title = Arquivo
-menu-kml-open = Abrir KML…
-menu-kml-save = Salvar KML
-menu-kml-save-as = Salvar KML como…
+menu-kml-open = Abrir KML/KMZ…
+menu-kml-save = Salvar KML/KMZ
+menu-kml-save-as = Salvar KML/KMZ como…
 menu-screenshot-save = Salvar captura de tela
 menu-quit-action = Sair do EarthCraft
 
@@ -406,7 +406,7 @@ places-add-folder-action = + Pasta
 places-clear-all-action = Limpar tudo
 places-delete-action = Excluir
 places-visible-help = Mostrar este lugar e seus filhos no globo
-places-empty-help = Abra um arquivo KML ou adicione um lugar. Arraste lugares para pastas para organizá-los.
+places-empty-help = Abra um arquivo KML ou KMZ ou adicione um lugar. Arraste lugares para pastas para organizá-los.
 places-description-placeholder = Descrição
 
 # Worldwide layers and the 3D Easter egg (merged)

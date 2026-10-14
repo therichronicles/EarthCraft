@@ -24,6 +24,7 @@ serde.workspace = true
 glam.workspace = true
 quick-xml.workspace = true
 kml.workspace = true
+zip.workspace = true
 moka.workspace = true
 rayon.workspace = true
 rusqlite.workspace = true

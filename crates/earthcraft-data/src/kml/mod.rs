@@ -1,4 +1,4 @@
-//! Read and write EarthCraft placemarks through GeoRust KML.
+//! Read and write KML/KMZ places through the shared GeoRust KML pipeline.
 use ::kml::{
     Kml, KmlReader, KmlWriter,
     types::{
@@ -15,6 +15,7 @@ use quick_xml::{
 };
 
 mod guard;
+mod kmz;
 
 fn element(name: &str, content: &str) -> Kml<f64> {
     Kml::Element(Element {
@@ -94,6 +95,11 @@ pub fn save_kml(path: &str, places: &Places) -> Result<(), crate::Error> {
     xml.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
     drop(xml);
     KmlWriter::from_writer(&mut bytes).write(&document)?;
+    let bytes = if is_kmz(path) {
+        kmz::encode(&bytes)?
+    } else {
+        bytes
+    };
     Ok(std::fs::write(path, bytes)?)
 }
 fn metadata(elements: &[Kml<f64>], field: &str) -> Option<String> {
@@ -208,8 +214,20 @@ fn parse_tree(txt: &str, lg: Lang) -> Result<Places, crate::Error> {
     Ok(Places { roots: out })
 }
 
+fn is_kmz(path: &str) -> bool {
+    std::path::Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("kmz"))
+}
+
 pub fn load_kml(path: &str, lg: Lang) -> Result<Places, crate::Error> {
-    parse_tree(&std::fs::read_to_string(path)?, lg)
+    let xml = if is_kmz(path) {
+        kmz::read(path)?
+    } else {
+        std::fs::read_to_string(path)?
+    };
+    parse_tree(&xml, lg)
 }
 
 #[cfg(test)]

@@ -8,9 +8,9 @@ so reviewers can distinguish behavior changes from file organization.
 
 Install Rust 1.95 or newer through rustup. The locked dependency graph includes
 eframe/egui 0.36, which require Rust 1.95.
-The workspace uses Edition 2024 and declares Rust 1.95; CI checks stable on Linux,
-macOS and Windows. Stable is suitable for day-to-day development; do not use APIs
-newer than the declared minimum.
+The workspace uses Edition 2024 and declares Rust 1.95; CI checks stable on
+Ubuntu. Stable is suitable for day-to-day development; do not use APIs newer than
+the declared minimum.
 
 On Linux, install build prerequisites before compiling:
 
@@ -43,7 +43,7 @@ catch unintended dependency resolution changes. Intentional dependency updates
 should be reviewed separately, including compatibility with Rust 1.95.
 The `app-build-test` workflow runs on pushes and pull requests changing `apps/**`
 or `crates/**`, and can also be run manually from Actions. It formats, lints,
-tests, and builds on Linux/macOS/Windows using stable Rust. Use the latest supported major version tags for GitHub
+tests, and builds on Ubuntu using stable Rust. Use the latest supported major version tags for GitHub
 Actions, rather than commit hashes. For actions without version tags, follow the
 maintained upstream branch. Keep Rust toolchain versions explicit.
 
@@ -156,6 +156,10 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
 - For overlay caching, toggle label/border layers while stationary, switch
   language/map text size, and resize. Verify updates without camera movement;
   late boundary patches and ruler/placemark edits must appear immediately.
+- Open/drop uppercase and lowercase `.kmz` archives, including a nested KML
+  document and extra image resources. Verify folders/visibility match plain KML,
+  save as KMZ and reopen, restart, and confirm missing archives are pruned.
+  Invalid ZIPs, missing KML entries and documents over 64 MiB must report errors.
 - Create placemarks; save/open/drop KML; export a screenshot and use the ruler.
   Open several KML files, restart and verify their saved contents reopen in order.
   Remove one source externally, restart and verify it is silently pruned from

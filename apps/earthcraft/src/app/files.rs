@@ -157,7 +157,7 @@ impl App {
     pub(super) fn pick_kml_open(&mut self) {
         let dir = PathBuf::from(&self.settings.kml_dir);
         let mut dlg = rfd::FileDialog::new()
-            .add_filter("KML", &["kml", "KML"])
+            .add_filter("KML / KMZ", &["kml", "KML", "kmz", "KMZ"])
             .set_title(self.lang.text("kml-open-dialog-title"));
         if dir.is_dir() {
             dlg = dlg.set_directory(&dir);
@@ -176,6 +176,7 @@ impl App {
             .to_string();
         let mut dlg = rfd::FileDialog::new()
             .add_filter("KML", &["kml"])
+            .add_filter("KMZ", &["kmz"])
             .set_file_name(name)
             .set_title(self.lang.text("kml-save-dialog-title"));
         if dir.is_dir() {
@@ -215,7 +216,7 @@ impl App {
             let is_kml = path
                 .extension()
                 .and_then(|e| e.to_str())
-                .is_some_and(|e| e.eq_ignore_ascii_case("kml"));
+                .is_some_and(|e| e.eq_ignore_ascii_case("kml") || e.eq_ignore_ascii_case("kmz"));
             if is_kml {
                 self.load_kml_from(path);
             } else {

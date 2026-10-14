@@ -95,6 +95,39 @@ fn all_original_labels_keep_exact_wording_and_help_newlines() {
                 ("layers-municipal-borders-toggle", Lang::PtBr) => {
                     "Limites de municípios do mundo (OSM) e Brasil (IBGE)"
                 }
+                // KMZ support intentionally updates the file-format labels.
+                ("kml-open-dialog-title", Lang::En) => "Open KML or KMZ",
+                ("kml-open-dialog-title", Lang::PtBr) => "Abrir KML ou KMZ",
+                ("kml-save-dialog-title", Lang::En) => "Save KML or KMZ as",
+                ("kml-save-dialog-title", Lang::PtBr) => "Salvar KML ou KMZ como",
+                ("kml-drop-type-error", Lang::En) => "Only .kml or .kmz files can be dropped here.",
+                ("kml-drop-type-error", Lang::PtBr) => {
+                    "Só é possível soltar arquivos .kml ou .kmz aqui."
+                }
+                ("settings-kml-folder-label", Lang::En) => "KML/KMZ files:",
+                ("settings-kml-folder-label", Lang::PtBr) => "Arquivos KML/KMZ:",
+                ("settings-kml-folder-dialog-title", Lang::En) => "KML/KMZ folder",
+                ("settings-kml-folder-dialog-title", Lang::PtBr) => "Pasta dos KML/KMZ",
+                ("kml-drop-zone-hint", Lang::En) => "📥 Drag a .kml or .kmz file here",
+                ("kml-drop-zone-hint", Lang::PtBr) => "📥 Arraste um arquivo .kml ou .kmz aqui",
+                ("kml-save-tooltip", Lang::En) => "Saves into the KML/KMZ folder (see Settings)",
+                ("kml-save-tooltip", Lang::PtBr) => {
+                    "Salva na pasta de KML/KMZ (veja Configurações)"
+                }
+                ("kml-open-action", Lang::En) => "📂 Open KML/KMZ…",
+                ("kml-open-action", Lang::PtBr) => "📂 Abrir KML/KMZ…",
+                ("menu-kml-open", Lang::En) => "Open KML/KMZ…",
+                ("menu-kml-open", Lang::PtBr) => "Abrir KML/KMZ…",
+                ("menu-kml-save", Lang::En) => "Save KML/KMZ",
+                ("menu-kml-save", Lang::PtBr) => "Salvar KML/KMZ",
+                ("menu-kml-save-as", Lang::En) => "Save KML/KMZ As…",
+                ("menu-kml-save-as", Lang::PtBr) => "Salvar KML/KMZ como…",
+                ("places-empty-help", Lang::En) => {
+                    "Open a KML or KMZ file or add a place. Drag places into folders to organize them."
+                }
+                ("places-empty-help", Lang::PtBr) => {
+                    "Abra um arquivo KML ou KMZ ou adicione um lugar. Arraste lugares para pastas para organizá-los."
+                }
                 _ => values[lang.code()].as_str().unwrap(),
             };
             assert_eq!(lang.text(id), expected, "{id}");

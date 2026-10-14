@@ -1,12 +1,12 @@
 # Embedded UI catalog. Keep keys and variables in sync across locales.
 
-kml-open-dialog-title = Open KML
+kml-open-dialog-title = Open KML or KMZ
 
-kml-save-dialog-title = Save KML as
+kml-save-dialog-title = Save KML or KMZ as
 
 screenshot-empty-error = Nothing to save yet.
 
-kml-drop-type-error = Only .kml files can be dropped here.
+kml-drop-type-error = Only .kml or .kmz files can be dropped here.
 
 globe-placemark-action = 📍 Add placemark here
 
@@ -70,9 +70,9 @@ settings-screenshot-folder-label = Screenshots (PNG):
 
 settings-screenshot-folder-dialog-title = Screenshots folder
 
-settings-kml-folder-label = KML files:
+settings-kml-folder-label = KML/KMZ files:
 
-settings-kml-folder-dialog-title = KML folder
+settings-kml-folder-dialog-title = KML/KMZ folder
 
 settings-folder-creation-help = Folders are created automatically when saving.
 
@@ -147,15 +147,15 @@ placemarks-add-center-action = ➕ At center
 
 placemarks-fly-to-action = Go
 
-kml-drop-zone-hint = 📥 Drag a .kml file here
+kml-drop-zone-hint = 📥 Drag a .kml or .kmz file here
 
 kml-save-action = 💾 Save
 
-kml-save-tooltip = Saves into the KML folder (see Settings)
+kml-save-tooltip = Saves into the KML/KMZ folder (see Settings)
 
 kml-save-as-action = 💾 Save as…
 
-kml-open-action = 📂 Open KML…
+kml-open-action = 📂 Open KML/KMZ…
 
 ruler-section-title = Ruler
 
@@ -302,9 +302,9 @@ live-radar-credit = Precipitation radar: RainViewer (rainviewer.com)
 
 # Native desktop menus
 menu-file-title = File
-menu-kml-open = Open KML…
-menu-kml-save = Save KML
-menu-kml-save-as = Save KML As…
+menu-kml-open = Open KML/KMZ…
+menu-kml-save = Save KML/KMZ
+menu-kml-save-as = Save KML/KMZ As…
 menu-screenshot-save = Save Screenshot
 menu-quit-action = Quit EarthCraft
 
@@ -406,7 +406,7 @@ places-add-folder-action = + Folder
 places-clear-all-action = Clear All
 places-delete-action = Delete
 places-visible-help = Show this place and its children on the globe
-places-empty-help = Open a KML file or add a place. Drag places into folders to organize them.
+places-empty-help = Open a KML or KMZ file or add a place. Drag places into folders to organize them.
 places-description-placeholder = Description
 
 # Worldwide layers and the 3D Easter egg (merged)

@@ -108,7 +108,8 @@ fn restore_reopens_sources_in_order_prunes_missing_and_retains_other_errors() {
     let mut paths = Vec::new();
     // A single restoration job supports more documents than the queue capacity.
     for index in 0..PENDING_FILE_JOBS + 2 {
-        let path = fixture.0.join(format!("{index}.kml"));
+        let extension = if index % 2 == 0 { "kml" } else { "kmz" };
+        let path = fixture.0.join(format!("{index}.{extension}"));
         let mut places = Places::default();
         places.push(earthcraft_core::placemark::Placemark {
             name: format!("Source {index}"),

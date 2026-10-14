@@ -16,6 +16,8 @@ pub enum Error {
     #[error(transparent)]
     Kml(#[from] ::kml::Error),
     #[error(transparent)]
+    Zip(#[from] zip::result::ZipError),
+    #[error(transparent)]
     PrefixIndex(#[from] fst::Error),
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
