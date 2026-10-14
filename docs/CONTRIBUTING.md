@@ -157,6 +157,14 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   language/map text size, and resize. Verify updates without camera movement;
   late boundary patches and ruler/placemark edits must appear immediately.
 - Create placemarks; save/open/drop KML; export a screenshot and use the ruler.
+  Import nested Documents/Folders (including empty folders and repeated names).
+  Expand/collapse, select and edit names/descriptions, double-click a marker to
+  fly, and toggle parent/child visibility. Move markers/folders by dragging onto
+  a folder or My Places; dropping a parent onto a descendant must do nothing.
+  Add folders/markers to a selected folder, delete a subtree, save and reopen:
+  hierarchy, order and visibility must survive without extra wrapper nesting.
+  Check both languages and narrow/resized sidebars. Native tree interaction is
+  separate from the automated core mutation and KML round-trip tests.
 - In Explorer, display large planet/sky images and load/save `.earthplanet` files;
   the UI should remain responsive while the file work runs. Check the busy
   indicator and disabled file controls, including after a failed operation.

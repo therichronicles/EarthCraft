@@ -128,17 +128,23 @@ opens a native window or uses user settings/caches or public services.
 
 | Model/run | Median CPU frame |
 | --- | ---: |
-| Sphere before, invocation 1 / 2 | 2.224 / 2.390 ms |
-| Sphere after, invocation 1 / 2 | 2.158 / 2.132 ms |
-| WGS 84 after, default features | 2.622 ms |
+| Sphere before, initial invocations 1 / 2 | 2.224 / 2.390 ms |
+| Sphere after, initial invocations 1 / 2 | 2.158 / 2.132 ms |
+| Sphere before / after merging KML, before the inline hint | 2.186 / 2.307 ms |
+| Sphere before / final combined implementation | 2.057 / 2.102 ms |
+| WGS 84, final combined implementation | 2.460 ms |
 
-The final WGS 84 round samples were 2.468–2.745 ms. The second sphere invocation
-ranged 2.091–2.618 ms before and 2.066–3.078 ms after, including the slow sample.
-These runs show no sphere regression in this workload; uncontrolled scheduling,
-thermal state and code layout preclude a general speedup or zero-overhead claim.
-The selected ellipsoid performs additional intersection/normal/curvature work;
-its higher cost is not imposed on sphere pixel loops. Other views, GUI latency,
-GPU execution and total app FPS are not established by this fixture.
+The final WGS 84 round samples were 2.437–2.561 ms. The final sphere invocation
+ranged 2.049–2.184 ms before and 2.073–2.169 ms after. The earlier second
+invocation included a 3.078 ms after sample; it was retained in its round results.
+After the merge, specializing the sphere's normal use and retaining the inline
+ray-kernel boundary avoids carrying ellipsoid-only work into that pixel path.
+Paired results vary in both directions; the last pair is about 2% slower. These
+limited runs do not establish zero overhead or a general speedup/regression.
+Scheduling, thermal state and code layout remain uncontrolled. The selected
+ellipsoid performs additional intersection/normal/curvature work; that math is
+not imposed on sphere pixel loops. Other views, GUI latency, GPU execution and
+total app FPS are not established by this fixture.
 
 Reproduce the current model runs separately, without concurrent compilation:
 

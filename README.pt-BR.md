@@ -30,7 +30,7 @@ Consulte as [instruções da Apple](https://support.apple.com/pt-br/102445).
 - Limpeza dos tiles baixados em disco pelas configurações
 - Busca de lugares/endereços (Nominatim) e entrada direta de coordenadas "lat, lon"
 - Voo animado até o destino (duplo clique, busca ou lista)
-- Placemarks com importação/exportação KML
+- Placemarks em uma árvore editável de pastas KML, com visibilidade e organização por arrastar para pastas
 - Modelo da Terra selecionável: Esfera perfeita (padrão) ou Realista — WGS 84 (G2296) experimental
 - Régua de distância geodésica (grande círculo ou elipsoidal), com entrada/edição de pontos em graus decimais exatos, desfazer/refazer, trajetos separados (Alt+clique), unidades métricas, imperiais, náuticas, angulares e divertidas selecionáveis e rumo inicial do último segmento
 - Grade lat/lon com números opcionais, atmosfera, estrelas, luz solar em tempo real (dia/noite)

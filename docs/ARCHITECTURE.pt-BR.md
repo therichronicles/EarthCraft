@@ -133,3 +133,5 @@ A projeção meteorológica e a construção das malhas mantêm seu agendamento 
 essa mudança não adiciona tarefas em segundo plano.
 
 O core oferece modelos da Terra separados da geometria: esfera perfeita por padrão e WGS 84 (G2296) experimental. Câmera, seleção, rasterização, sobreposições e geodésicas usam o modelo selecionado. A troca invalida quadros/caches incompatíveis; o elipsoide usa CPU. Consulte [Earth models](EARTH_MODELS.md) para limites de referencial/época e extensão.
+
+A árvore de lugares pertence ao core e preserva Documentos/Pastas KML, ordem, nomes, descrições, pastas vazias e visibilidade herdada. A interface permite seleção, edição e movimentos sem ciclos; a leitura e gravação continuam no serviço de arquivos. Geometrias não suportadas mantêm a política de importar apenas a primeira coordenada.

@@ -36,14 +36,15 @@ fn jobs_preserve_order_snapshot_inputs_and_wake_after_success_and_failure() {
         let _ = wake_tx.send(());
     });
     let kml = fixture.0.join("saved/marks.kml");
-    let mut marks = vec![Placemark {
+    let mut marks = Places::default();
+    marks.push(earthcraft_core::placemark::Placemark {
         name: "Saved snapshot".into(),
         desc: "".into(),
         lat: 20.0,
         lon: 30.0,
-    }];
+    });
     jobs.save_kml(kml.clone(), &marks).unwrap();
-    marks[0].name = "Edited later".into();
+    *marks.roots[0].name_mut() = "Edited later".into();
     jobs.open_kml(kml.clone(), Lang::En).unwrap();
     jobs.open_kml(fixture.0.join("missing.kml"), Lang::En)
         .unwrap();
@@ -63,7 +64,7 @@ fn jobs_preserve_order_snapshot_inputs_and_wake_after_success_and_failure() {
         panic!("ordered KML load");
     };
     assert_eq!(path, kml);
-    assert_eq!(placemarks[0].name, "Saved snapshot");
+    assert_eq!(placemarks.first().unwrap().name, "Saved snapshot");
     assert!(
         results
             .recv_timeout(Duration::from_secs(10))

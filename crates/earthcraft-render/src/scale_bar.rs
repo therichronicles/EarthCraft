@@ -19,7 +19,7 @@ impl ScaleBar {
 
 /// The experimental ellipsoid bar measures the actual surface under its screen
 /// endpoints. The default sphere retains its original altitude-based policy.
-pub fn scale_bar_for_view(
+fn scale_bar_for_view(
     basis: &earthcraft_core::camera::Basis,
     rect: emath::Rect,
     altitude_km: f64,

@@ -1,7 +1,7 @@
 //! Desktop state and orchestration; widgets live in focused child modules.
 #[cfg(test)]
 mod test_ui;
-use earthcraft_core::{camera::Cam, language::Lang, placemark::Placemark};
+use earthcraft_core::{camera::Cam, language::Lang, placemark::Places};
 use earthcraft_data::{
     boundaries::{BoundaryData, BoundaryUpdates, StatusLog, load_boundaries_async},
     search::{GeoResult, Suggestion},
@@ -94,7 +94,8 @@ pub(crate) struct App {
 
     file_jobs: earthcraft_data::files::FileJobs,
     file_results: mpsc::Receiver<earthcraft_data::files::FileCompletion>,
-    placemarks: Vec<Placemark>,
+    placemarks: Places,
+    place_selection: Option<u64>,
     new_name: String,
     kml_path: String,
     menu_pick: Option<(f64, f64)>,
@@ -224,7 +225,8 @@ impl App {
             system_units: earthcraft_core::units::DistanceUnits::for_locale(&system_locale),
             us_locale: earthcraft_core::units::is_us_locale(&system_locale),
             altitude_editor: None,
-            placemarks: vec![],
+            placemarks: Places::default(),
+            place_selection: None,
             file_jobs,
             file_results,
             new_name: String::new(),

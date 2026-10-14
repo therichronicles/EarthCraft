@@ -35,13 +35,11 @@ pub(super) fn surface<const ELLIPSOID: bool>(
     let maxz = cfg.provider.max_zoom() as f64;
     let t = ray.distance;
     let cosinc = ray.incidence;
+    let normal = if ELLIPSOID { ray.normal } else { ray.point };
     let (lat, lon) = if ELLIPSOID {
         (
-            ray.normal
-                .z
-                .atan2(ray.normal.x.hypot(ray.normal.y))
-                .to_degrees(),
-            ray.normal.y.atan2(ray.normal.x).to_degrees(),
+            normal.z.atan2(normal.x.hypot(normal.y)).to_degrees(),
+            normal.y.atan2(normal.x).to_degrees(),
         )
     } else {
         v3_to_ll(ray.point)
@@ -102,7 +100,7 @@ pub(super) fn surface<const ELLIPSOID: bool>(
         false
     };
     let (shade, night) = if let Some(sun) = cfg.sun {
-        let k = ((ray.normal.dot(sun) + TWILIGHT_OFFSET) / TWILIGHT_WIDTH).clamp(0.0, 1.0) as f32;
+        let k = ((normal.dot(sun) + TWILIGHT_OFFSET) / TWILIGHT_WIDTH).clamp(0.0, 1.0) as f32;
         let k = k * k * (3.0 - 2.0 * k);
         (
             NIGHT_BRIGHTNESS + DAY_BRIGHTNESS_RANGE * k,

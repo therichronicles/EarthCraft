@@ -1,6 +1,6 @@
 //! Ordered, bounded file jobs; native dialogs and applying results stay in app.
 mod images;
-use earthcraft_core::{language::Lang, placemark::Placemark};
+use earthcraft_core::{language::Lang, placemark::Places};
 pub use images::{ImageSource, ImageTarget, LoadedImage, PlanetSave};
 use std::{
     path::PathBuf,
@@ -11,7 +11,7 @@ const PENDING_FILE_JOBS: usize = 4;
 pub enum FileOutcome {
     KmlLoaded {
         path: PathBuf,
-        placemarks: Vec<Placemark>,
+        placemarks: Places,
     },
     KmlSaved {
         path: PathBuf,
@@ -45,7 +45,7 @@ pub struct FileCompletion {
 }
 enum Job {
     Open(PathBuf, Lang),
-    Save(PathBuf, Vec<Placemark>),
+    Save(PathBuf, Places),
     Screenshot(PathBuf, u32, u32, Arc<Vec<u8>>),
     Image(ImageTarget, ImageSource),
     OpenPlanet(PathBuf),
@@ -149,8 +149,8 @@ impl FileJobs {
         self.reserve()?.send(Job::Open(path, lang));
         Ok(())
     }
-    pub fn save_kml(&self, path: PathBuf, marks: &[Placemark]) -> Result<(), crate::Error> {
-        self.reserve()?.send(Job::Save(path, marks.to_vec()));
+    pub fn save_kml(&self, path: PathBuf, marks: &Places) -> Result<(), crate::Error> {
+        self.reserve()?.send(Job::Save(path, marks.clone()));
         Ok(())
     }
     pub fn screenshot(

@@ -1,3 +1,11 @@
+fn parse_kml(xml: &str, lang: Lang) -> Result<Vec<Placemark>, crate::Error> {
+    Ok(parse_tree(xml, lang)?.markers(false).cloned().collect())
+}
+fn places(marks: &[Placemark]) -> Places {
+    Places {
+        roots: marks.iter().cloned().map(PlaceNode::marker).collect(),
+    }
+}
 use super::*;
 #[test]
 fn cdata_entities_fallback_names_and_incomplete_envelope() {
@@ -26,8 +34,12 @@ fn kml_roundtrip_preserves_names_descriptions_and_coordinate_order() {
         lat: -23.5,
         lon: -46.6,
     }];
-    save_kml(path.to_str().unwrap(), &marks).unwrap();
-    let loaded = load_kml(path.to_str().unwrap(), Lang::PtBr).unwrap();
+    save_kml(path.to_str().unwrap(), &places(&marks)).unwrap();
+    let loaded: Vec<_> = load_kml(path.to_str().unwrap(), Lang::PtBr)
+        .unwrap()
+        .markers(false)
+        .cloned()
+        .collect();
     std::fs::remove_file(path).unwrap();
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].name, marks[0].name);
@@ -178,9 +190,64 @@ fn invalid_import_and_export_coordinates_use_shared_validation() {
         lon: 0.0,
     };
     assert!(matches!(
-        save_kml(path.to_str().unwrap(), &[pm]),
+        save_kml(path.to_str().unwrap(), &places(&[pm])),
         Err(crate::Error::Coordinates(_))
     ));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "keep original");
     std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn tree_roundtrip_preserves_distinct_folders_visibility_and_empty_groups() {
+    let xml = r#"<kml><Document><name>My places</name><description>A &amp; B</description>
+      <Folder><name>Asia</name><visibility>0</visibility><Folder><name>Empty</name></Folder>
+      <Placemark><name>Peak</name><visibility>1</visibility><Point><coordinates>86,27</coordinates></Point></Placemark></Folder>
+      <Folder><name>Asia</name><Placemark><name>Other</name><visibility>0</visibility><Point><coordinates>87,28</coordinates></Point></Placemark></Folder>
+    </Document></kml>"#;
+    let tree = parse_tree(xml, Lang::En).unwrap();
+    assert_eq!(tree.len(), 2);
+    assert_eq!(tree.markers(true).count(), 0);
+    let PlaceItem::Folder {
+        name,
+        description,
+        children,
+        document,
+    } = &tree.roots[0].item
+    else {
+        panic!("document");
+    };
+    assert_eq!(name, "My places");
+    assert_eq!(description, "A & B");
+    assert!(document);
+    assert_eq!(children.len(), 2);
+    assert!(!children[0].visible);
+    assert_ne!(children[0].id(), children[1].id());
+    let PlaceItem::Folder {
+        children: nested, ..
+    } = &children[0].item
+    else {
+        panic!("folder");
+    };
+    assert!(matches!(&nested[0].item, PlaceItem::Folder { children, .. } if children.is_empty()));
+    let path = std::env::temp_dir().join(format!("earthcraft-tree-{}.kml", std::process::id()));
+    save_kml(path.to_str().unwrap(), &tree).unwrap();
+    let restored = load_kml(path.to_str().unwrap(), Lang::En).unwrap();
+    save_kml(path.to_str().unwrap(), &restored).unwrap();
+    let serialized = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(serialized.matches("<Document").count(), 1);
+    let restored = load_kml(path.to_str().unwrap(), Lang::En).unwrap();
+    std::fs::remove_file(path).unwrap();
+    let PlaceItem::Folder { children, .. } = &restored.roots[0].item else {
+        panic!("document");
+    };
+    assert_eq!(children.len(), 2);
+    assert!(!children[0].visible);
+    assert_eq!(restored.markers(true).count(), 0);
+    assert_eq!(
+        restored
+            .markers(false)
+            .map(|pm| pm.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Peak", "Other"]
+    );
 }

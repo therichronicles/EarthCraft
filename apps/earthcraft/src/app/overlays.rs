@@ -94,7 +94,7 @@ impl App {
             }
         }
         // placemarks
-        for pm in &self.placemarks {
+        for pm in self.placemarks.markers(true) {
             if let Some(s) = basis.project(basis.surface_position(pm.lat, pm.lon), rect)
                 && rect.contains(s)
             {

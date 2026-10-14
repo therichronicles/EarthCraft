@@ -55,6 +55,7 @@ impl RayCaster {
             self.cast_model::<true>(first_x, y)
         }
     }
+    #[inline]
     pub(super) fn cast_model<const ELLIPSOID: bool>(
         &self,
         first_x: usize,

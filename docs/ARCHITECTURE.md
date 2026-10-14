@@ -118,6 +118,18 @@ with scanning during rebuilds. Ranking and remote-result merging remain explicit
 
 GeoRust `kml` owns XML reading/writing. A bounded quick-xml preparation pass skips
 empty Points, balances incomplete containers and wraps bare-coordinate fragments.
+Core's `placemark` module owns a tree of Documents, Folders and point markers,
+session-stable node IDs, inherited visibility and cycle-safe moves. Import/export
+retains container order, names, descriptions, empty folders and visibility;
+repeated saves do not introduce additional Document wrappers. The existing
+first-coordinate policy for line/polygon Placemarks remains; this is not a
+lossless editor for unsupported KML geometry, styles or network links.
+The desktop draws disclosure arrows, full-width selectable rows and visibility
+checkboxes, with a details editor for the selection. Double-click flies to a
+marker; drag onto a folder or My Places to move it. Creating a place/folder uses
+the selected folder, otherwise the root. Hidden ancestors suppress map markers
+without changing children's own visibility. File jobs capture the whole tree
+at submission; decoding, encoding and filesystem work stay off the UI thread.
 KML I/O and screenshot encoding use an ordered bounded file service. Native dialogs
 and result application belong to the app. Settings/language writes coalesce on a
 filesystem worker and flush at shutdown; startup reads the small preference files.

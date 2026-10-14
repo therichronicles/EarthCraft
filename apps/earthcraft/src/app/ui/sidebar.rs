@@ -1,6 +1,5 @@
 use super::super::App;
 use super::paths::short_folder;
-use earthcraft_core::placemark::Placemark;
 use earthcraft_data::tiles::Provider;
 use eframe::egui::{self, Color32, Key, Stroke};
 pub(super) const DEFAULT_SIDEBAR_WIDTH_POINTS: f32 = 270.0;
@@ -12,7 +11,6 @@ impl App {
         let mut expanded = self.sidebar_open;
         let lg = self.lang;
         let mut goto: Option<(f64, f64, f64)> = None;
-        let mut del: Option<usize> = None;
         let (mut save_now, mut save_as, mut open_dialog, mut open_typed, mut shot) =
             (false, false, false, false, false);
         self.kml_drop_rect = egui::Rect::NOTHING;
@@ -195,50 +193,8 @@ impl App {
                     egui::CollapsingHeader::new(lg.text("placemarks-section-title"))
                         .default_open(true)
                         .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut self.new_name)
-                                        .hint_text(lg.text("placemarks-name-placeholder"))
-                                        .desired_width(120.0),
-                                );
-                                if ui.button(lg.text("placemarks-add-center-action")).clicked() {
-                                    let name = if self.new_name.trim().is_empty() {
-                                        lg.format(
-                                            "placemarks-generated-name",
-                                            &[(
-                                                "number",
-                                                (self.placemarks.len() + 1).to_string().into(),
-                                            )],
-                                        )
-                                    } else {
-                                        self.new_name.trim().to_string()
-                                    };
-                                    self.placemarks.push(Placemark {
-                                        name,
-                                        desc: String::new(),
-                                        lat: self.cam.lat,
-                                        lon: self.cam.lon,
-                                    });
-                                    self.new_name.clear();
-                                }
-                            });
-                            for (i, p) in self.placemarks.iter_mut().enumerate() {
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        egui::TextEdit::singleline(&mut p.name)
-                                            .desired_width(110.0),
-                                    );
-                                    if ui
-                                        .small_button(lg.text("placemarks-fly-to-action"))
-                                        .on_hover_text(format!("{:.5}, {:.5}", p.lat, p.lon))
-                                        .clicked()
-                                    {
-                                        goto = Some((p.lat, p.lon, 3.0));
-                                    }
-                                    if ui.small_button("🗑").clicked() {
-                                        del = Some(i);
-                                    }
-                                });
+                            if let Some(target) = self.places_tree(ui) {
+                                goto = Some(target);
                             }
                             ui.separator();
                             // Drop zone: drag a .kml file from the file manager onto this box.
@@ -415,9 +371,6 @@ impl App {
             },
         );
         self.sidebar_open = expanded;
-        if let Some(i) = del {
-            self.placemarks.remove(i);
-        }
         if save_now {
             let path = self.resolve_kml_path(&self.kml_path.clone());
             self.save_kml_to(path);

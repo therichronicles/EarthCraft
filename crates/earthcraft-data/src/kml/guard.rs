@@ -6,6 +6,7 @@ use quick_xml::{
 };
 
 const MAX_XML_DEPTH: usize = 128;
+pub(super) const FOLDER_ATTRIBUTE: &str = "earthcraft-prepared-folder";
 
 struct Frame {
     tag: BytesStart<'static>,
@@ -29,8 +30,16 @@ fn start(
     if stack.len() >= MAX_XML_DEPTH {
         return Err("KML nesting exceeds the supported depth".into());
     }
+    let mut tag = tag.into_owned();
+    // kml 0.14's Folder reader discards unknown feature fields, including
+    // visibility. Its Document reader preserves them. Normalize only this
+    // container and mark it so typed decoding can restore the original kind.
+    if tag.local_name().as_ref() == "Folder" {
+        tag.set_name("Document");
+        tag.push_attribute((FOLDER_ATTRIBUTE, "1"));
+    }
     let frame = Frame {
-        tag: tag.into_owned(),
+        tag,
         start: writer.get_ref().len(),
         coordinate_text: false,
         has_coordinates: false,

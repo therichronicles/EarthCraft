@@ -1,6 +1,6 @@
 //! Earth surface geometry and geodesics. World coordinates retain mean-radius units.
 //! Reference-frame metadata does not transform epochs or model crustal motion.
-use crate::{EARTH_RADIUS_KM, compass, math};
+use crate::{EARTH_RADIUS_KM, METERS_PER_KM, compass, math};
 use geographiclib_rs::{DirectGeodesic, Geodesic, InverseGeodesic};
 use glam::DVec3;
 use std::sync::LazyLock;
@@ -65,7 +65,7 @@ impl EarthModel {
             Self::PerfectSphere => math::haversine_km(start, end),
             Self::Wgs84 => {
                 let meters: f64 = WGS84_GEODESIC.inverse(start.0, start.1, end.0, end.1);
-                meters / 1000.0
+                meters / METERS_PER_KM
             }
         }
     }
@@ -96,7 +96,7 @@ impl EarthModel {
         match self {
             Self::PerfectSphere => math::destination(start.0, start.1, bearing_deg, distance_km),
             Self::Wgs84 => {
-                WGS84_GEODESIC.direct(start.0, start.1, bearing_deg, distance_km * 1000.0)
+                WGS84_GEODESIC.direct(start.0, start.1, bearing_deg, distance_km * METERS_PER_KM)
             }
         }
     }
