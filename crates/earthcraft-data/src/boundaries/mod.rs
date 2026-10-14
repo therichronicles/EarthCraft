@@ -4,6 +4,7 @@ mod brazil;
 mod geojson;
 mod load;
 mod updates;
+mod world;
 pub use geojson::dedupe_city_labels;
 pub use load::{BoundaryLoader, load_boundaries_async};
 pub use updates::{BoundarySnapshot, BoundaryUpdates};
@@ -15,6 +16,7 @@ pub struct BoundaryData {
     pub states: Vec<Line>, // admin-1 of "ordinary" countries (shown at medium zoom)
     pub states_big: Vec<Line>, // admin-1 of the largest countries (shown even with the whole Earth in view)
     pub cities: Vec<Line>,
+    pub world_cities: Vec<Line>,
     pub metro: Vec<Line>,
     pub labels: Vec<MapLabel>,
 }
@@ -118,6 +120,7 @@ pub enum Layer {
     Countries,
     States,
     Cities,
+    WorldCities,
     Metro,
 }
 

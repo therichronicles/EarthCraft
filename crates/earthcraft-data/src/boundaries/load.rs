@@ -1,4 +1,5 @@
 use super::brazil::load_brazil;
+use super::world::load_osm_cities;
 use super::geojson::{collect_geojson_lines, feature_name, label_center};
 use super::{LabelKind, Layer, Line, MapLabel, Patch, StatusLog, is_big_country, log_status};
 use std::sync::{
@@ -27,6 +28,9 @@ pub struct BoundaryLoader {
     log: StatusLog,
     active: Arc<AtomicUsize>,
     requests: BrazilRequests,
+    world_requested: Option<(f64,f64)>,
+    world_attempt: Option<std::time::Instant>,
+
     repaint: Repaint,
 }
 impl BoundaryLoader {
@@ -54,6 +58,30 @@ impl BoundaryLoader {
             return None;
         }
         Some(geometry)
+    }
+    /// Worldwide city/municipal boundaries from OpenStreetMap, fetched only
+    /// near the current camera. Existing official Brazilian IBGE outlines remain.
+    pub fn request_world_cities(&mut self, enabled: bool, altitude_km: f64, lat: f64, lon: f64) {
+        if !enabled || altitude_km > 110.0 || lat.abs() >= 84.0 {return;}
+        if self.world_attempt.is_some_and(|t| t.elapsed().as_secs()<75) {return;}
+        if self.world_requested.is_some_and(|(a,b)| {
+            (lat-a).abs() < 0.15 && (lon-b).abs() < 0.15 &&
+            self.world_attempt.is_some_and(|t| t.elapsed().as_secs() < 600)
+        }) {return;}
+        self.world_requested = Some((lat,lon));
+        self.world_attempt = Some(std::time::Instant::now());
+        let tx = self.tx.clone();
+        let log = self.log.clone();
+        let active = self.active.clone();
+        active.fetch_add(1, Ordering::Relaxed);
+        let job = ActiveJob(active, self.repaint.clone());
+        self.runtime.spawn(async move {
+            let _job = job;
+            match load_osm_cities(lat,lon).await {
+                Ok(patch) => {log_status(&log,format!("✔ OSM municipal borders: {} lines",patch.lines.len())); let _ = tx.send(patch);},
+                Err(e) => {log_status(&log,format!("✖ OSM municipal borders: {e}"));},
+            }
+        });
     }
     pub fn is_loading(&self) -> bool {
         self.active.load(Ordering::Relaxed) > 0
@@ -164,6 +192,8 @@ pub fn load_boundaries_async(
             log,
             active,
             requests: BrazilRequests::default(),
+            world_requested: None,
+            world_attempt: None,
             repaint,
         },
     )
@@ -304,6 +334,8 @@ mod tests {
             log: Arc::new(std::sync::Mutex::new(Vec::new())),
             active: Arc::new(AtomicUsize::new(0)),
             requests: BrazilRequests::default(),
+            world_requested: None,
+            world_attempt: None,
             repaint: Arc::new(|| {}),
         };
         assert_eq!(loader.take_request(false, false, true, 14000.0), None);

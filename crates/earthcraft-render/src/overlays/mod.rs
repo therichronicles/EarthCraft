@@ -135,6 +135,13 @@ pub fn project_borders(
             BorderKind::City,
             if close_zoom { 0.12 } else { 1.0 },
         );
+        // OSM municipalities are fetched on demand outside Brazil and
+        // projected with the same visibility/culling rules as IBGE outlines.
+        draw_lines(
+            &boundaries.world_cities,
+            BorderKind::City,
+            if close_zoom { 0.12 } else { 1.0 },
+        );
     }
     if view.layers.metro {
         draw_lines(

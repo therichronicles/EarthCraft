@@ -130,6 +130,11 @@ impl App {
         if q.is_empty() {
             return;
         }
+        // Secret easter egg commands are local-only (no network request).
+        if matches!(fold_name(&q).as_str(), "terraplana" | "flatearth") {
+            self.unlock_flat_earth(ctx);
+            return;
+        }
         if let Some((lat, lon)) = parse_latlon(&q) {
             self.fly_to(lat, lon, 3.0);
             self.status = self.lang.format(

@@ -23,3 +23,7 @@ pub mod profiling;
 pub mod links;
 pub mod live_maps;
 pub mod planet;
+pub mod roads;
+pub mod traffic;
+pub mod vessels;
+pub mod satellites;

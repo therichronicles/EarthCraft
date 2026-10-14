@@ -106,7 +106,7 @@ layers-state-borders-toggle = Estados / províncias (mundo todo)
 
 layers-place-labels-toggle = Nomes de países, estados e cidades
 
-layers-municipal-borders-toggle = Limites de cidades / municípios (disponível apenas para o Brasil)
+layers-municipal-borders-toggle = Limites de municípios do mundo (OSM) e Brasil (IBGE)
 
 layers-metro-borders-toggle = Regiões metropolitanas (disponível apenas para o Brasil)
 
@@ -408,3 +408,16 @@ places-delete-action = Excluir
 places-visible-help = Mostrar este lugar e seus filhos no globo
 places-empty-help = Abra um arquivo KML ou adicione um lugar. Arraste lugares para pastas para organizá-los.
 places-description-placeholder = Descrição
+
+# Worldwide layers and the 3D Easter egg (merged)
+flat-earth-title = ✦ TERRA PLANA SECRETA
+flat-earth-unlocked = Easter egg Terra Plana desbloqueado! Esc para voltar.
+flat-earth-disclaimer = Uma brincadeira visual, não um modelo científico.
+flat-earth-hint = Arraste: girar · Shift: mover · Roda: zoom · Duplo clique: reiniciar · Esc: sair
+flat-earth-return = ↩ Voltar ao globo
+flat-earth-image-error = Não foi possível carregar a ilustração secreta.
+layers-vessels-toggle = Navios AIS do mundo inteiro
+layers-satellites-toggle = Satélites (órbitas CelesTrak, estimadas)
+layers-traffic-toggle = Congestionamento real (TomTom; chave opcional)
+layers-traffic-key = Chave de API TomTom (não é salva)
+layers-roads-toggle = Estradas do mundo (OSM, sem chave)

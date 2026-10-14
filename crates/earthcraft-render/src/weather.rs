@@ -115,3 +115,24 @@ mod projection_tests {
         assert_eq!(&pixels[..4], &[0, 0, 0, 0]);
     }
 }
+
+/// Project provider's transparent 3x3 congestion raster onto the curved globe.
+pub fn project_traffic_tiles(
+    basis: &Basis, rect: Rect, width: usize, height: usize,
+    tiles: &earthcraft_data::traffic::TrafficTiles,
+) -> Vec<u8> {
+    let mut out = vec![0; width * height * 4];
+    for py in 0..height {
+        let sy = rect.top() + (py as f32 + 0.5) * rect.height() / height as f32;
+        for px in 0..width {
+            let sx = rect.left() + (px as f32 + 0.5) * rect.width() / width as f32;
+            if let Some((lat,lon)) = basis.pick(rect, Pos2::new(sx,sy)) {
+                if let Some(mut rgba) = tiles.sample(lat,lon) {
+                    rgba[3] = (rgba[3] as f32 * 0.90) as u8;
+                    out[(py*width+px)*4..(py*width+px)*4+4].copy_from_slice(&rgba);
+                }
+            }
+        }
+    }
+    out
+}

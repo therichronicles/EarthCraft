@@ -286,6 +286,15 @@ impl App {
                 self.show_clouds,
                 self.show_weather,
             );
+            if self.show_roads {
+                self.roads.draw(&painter, &display_basis, rect,
+                    display_cam.lat, display_cam.lon, display_cam.alt,
+                    self.lang == earthcraft_core::language::Lang::PtBr,
+                    self.settings.map_scale);
+            }
+            if self.show_traffic {
+                self.traffic.draw(&painter, &display_basis, rect);
+            }
             self.draw_overlays(&painter, &display_basis, rect, display_cam.alt);
             self.draw_live_layers(&painter, &display_basis, rect, display_cam.alt);
         }

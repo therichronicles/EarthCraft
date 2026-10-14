@@ -106,7 +106,7 @@ layers-state-borders-toggle = States / provinces (worldwide)
 
 layers-place-labels-toggle = Country, state and city names
 
-layers-municipal-borders-toggle = City / municipality borders (Brazil only)
+layers-municipal-borders-toggle = Municipal borders worldwide (OSM), Brazil (IBGE)
 
 layers-metro-borders-toggle = Metropolitan regions (Brazil only)
 
@@ -408,3 +408,16 @@ places-delete-action = Delete
 places-visible-help = Show this place and its children on the globe
 places-empty-help = Open a KML file or add a place. Drag places into folders to organize them.
 places-description-placeholder = Description
+
+# Worldwide layers and the 3D Easter egg (merged)
+flat-earth-title = ✦ SECRET FLAT EARTH
+flat-earth-unlocked = Flat-Earth Easter egg unlocked! Press Esc to return.
+flat-earth-disclaimer = A visual joke, not a scientific Earth model.
+flat-earth-hint = Drag: rotate · Shift: pan · Scroll: zoom · Double-click: reset · Esc: exit
+flat-earth-return = ↩ Back to globe
+flat-earth-image-error = Could not load the hidden illustration.
+layers-vessels-toggle = Worldwide AIS ships
+layers-satellites-toggle = Satellites (predicted CelesTrak orbits)
+layers-traffic-toggle = Live congestion (TomTom; optional key)
+layers-traffic-key = TomTom API key (not stored)
+layers-roads-toggle = Worldwide roads (OSM, no key)

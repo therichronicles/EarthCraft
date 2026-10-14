@@ -19,6 +19,7 @@ fn apply(data: &mut BoundaryData, patch: Patch) {
             data.states_big.extend(patch.lines_big);
         }
         Layer::Cities => data.cities.extend(patch.lines),
+        Layer::WorldCities => data.world_cities = patch.lines,
         Layer::Metro => data.metro.extend(patch.lines),
     }
     data.labels.extend(patch.labels);

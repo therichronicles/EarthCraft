@@ -155,6 +155,7 @@ impl App {
                         (Body::Custom, "explorer-custom-planet"),
                     ] {
                         if ui.button(lg.text(label)).clicked() {
+                            self.flat_earth.open = false;
                             self.explorer.choose(body, &self.file_jobs);
                         }
                     }

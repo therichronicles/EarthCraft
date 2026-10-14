@@ -16,11 +16,14 @@ use std::{
 };
 mod cache;
 mod explorer;
+mod flat_earth;
 mod files;
 mod frame_timing;
 mod globe;
 mod live_layers;
 mod live_maps;
+mod roads;
+mod traffic;
 mod menu;
 mod navigation;
 mod overlays;
@@ -45,6 +48,7 @@ pub(crate) struct App {
     native_menu: Option<menu::NativeMenu>,
     runtime: earthcraft_data::runtime::ServiceRuntime,
     explorer: explorer::Explorer,
+    flat_earth: flat_earth::FlatEarth,
     boundary_loader: earthcraft_data::boundaries::BoundaryLoader,
     lang: Lang,
     cam: Cam,
@@ -67,6 +71,15 @@ pub(crate) struct App {
     show_sun: bool,
     auto_rotate: bool,
     show_flights: bool,
+    show_vessels: bool,
+    show_satellites: bool,
+    show_traffic: bool,
+    show_roads: bool,
+    tomtom_key: String,
+    live_vessels: earthcraft_data::vessels::LiveVessels,
+    live_satellites: earthcraft_data::satellites::LiveSatellites,
+    traffic: traffic::TrafficOverlay,
+    roads: roads::RoadOverlay,
     show_weather: bool,
     show_clouds: bool,
     live_maps: live_maps::LiveMaps,
@@ -175,6 +188,7 @@ impl App {
             #[cfg(target_os = "macos")]
             native_menu: None,
             explorer: explorer::Explorer::default(),
+            flat_earth: flat_earth::FlatEarth::default(),
             lang,
             cam: INITIAL_CAMERA,
             fly: None,
@@ -203,6 +217,15 @@ impl App {
             show_sun: false,
             auto_rotate: false,
             show_flights: false,
+            show_vessels: false,
+            show_satellites: false,
+            show_traffic: false,
+            show_roads: false,
+            tomtom_key: std::env::var("EARTHCRAFT_TOMTOM_KEY").unwrap_or_default(),
+            live_vessels: earthcraft_data::vessels::LiveVessels::default(),
+            live_satellites: earthcraft_data::satellites::LiveSatellites::default(),
+            traffic: traffic::TrafficOverlay::default(),
+            roads: roads::RoadOverlay::default(),
             show_weather: false,
             show_clouds: false,
             live_maps: live_maps::LiveMaps::default(),
@@ -286,7 +309,7 @@ impl eframe::App for App {
     }
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let aircraft_enabled =
-            self.show_flights && self.explorer.active == earthcraft_core::body::Body::Earth;
+            self.show_flights && self.explorer.active == earthcraft_core::body::Body::Earth && !self.flat_earth.open;
         self.live_aircraft
             .update(earthcraft_data::aircraft::AircraftQuery {
                 enabled: aircraft_enabled,
@@ -296,6 +319,27 @@ impl eframe::App for App {
             });
         if aircraft_enabled {
             ctx.request_repaint_after(live_layers::FLIGHT_REPAINT_INTERVAL);
+        }
+        // Independent realtime layers, loaded only for the globe while enabled.
+        let earth = self.explorer.active == earthcraft_core::body::Body::Earth
+            && !self.flat_earth.open;
+        let vessel_wake = ctx.clone();
+        self.live_vessels.update(&self.runtime, earth && self.show_vessels,
+            move || vessel_wake.request_repaint());
+        let satellite_wake = ctx.clone();
+        self.live_satellites.update(&self.runtime, earth && self.show_satellites,
+            move || satellite_wake.request_repaint());
+        let road_wake = ctx.clone();
+        self.roads.service.update(&self.runtime, earth && self.show_roads,
+            self.cam.lat, self.cam.lon, self.cam.alt,
+            move || road_wake.request_repaint());
+        let traffic_wake = ctx.clone();
+        self.traffic.service.update(&self.runtime, earth && self.show_traffic,
+            &self.tomtom_key, self.cam.lat, self.cam.lon, self.cam.alt,
+            move || traffic_wake.request_repaint());
+        if earth && (self.show_vessels || self.show_satellites
+            || self.show_roads || self.show_traffic) {
+            ctx.request_repaint_after(Duration::from_secs(30));
         }
         self.poll_files(ctx);
         self.ensure_wayback(ctx);
@@ -334,6 +378,7 @@ impl eframe::App for App {
         #[cfg(not(target_os = "macos"))]
         self.file_shortcuts(ui);
         self.ruler_shortcuts(ui);
+        self.flat_earth_shortcuts(ui.ctx());
         self.handle_dropped_files(ui);
         self.step_fly(dt);
         if self.fly.is_some() {
@@ -348,6 +393,10 @@ impl eframe::App for App {
         self.ruler_points_window(ui);
         self.live_maps
             .update(ui, &self.runtime, self.show_clouds, self.show_weather);
+        self.boundary_loader.request_world_cities(
+            self.show_city_boundaries && self.explorer.active == earthcraft_core::body::Body::Earth && !self.flat_earth.open,
+            self.cam.alt, self.cam.lat, self.cam.lon,
+        );
         self.boundary_loader.request_visible_layers(
             self.show_city_boundaries,
             self.show_metro_boundaries,
@@ -359,7 +408,14 @@ impl eframe::App for App {
         }
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ui, |ui| self.globe_view(ui));
+            .show(ui, |ui| {
+                if self.flat_earth.open {
+                    let ctx = ui.ctx().clone();
+                    self.flat_earth_view(ui, &ctx);
+                } else {
+                    self.globe_view(ui);
+                }
+            });
         #[cfg(target_os = "macos")]
         self.refresh_native_menu(ui);
         #[cfg(feature = "profiling")]
