@@ -135,18 +135,17 @@ impl App {
                                 lg.text("layers-auto-rotation-toggle"),
                             );
                             ui.checkbox(&mut self.show_weather, lg.text("layers-weather-toggle"));
-                            ui.checkbox(&mut self.show_clouds, lg.text("layers-clouds-toggle"));
-                            ui.small(lg.text("layers-live-overlays-help"));
-                            if self.show_clouds {
-                                ui.hyperlink_to(
-                                    lg.text("sidebar-cloud-source"),
-                                    "https://github.com/matteason/live-cloud-maps",
-                                );
-                            }
                             if self.show_weather {
                                 ui.hyperlink_to(
                                     lg.text("sidebar-radar-source"),
                                     "https://www.rainviewer.com/",
+                                );
+                            }
+                            ui.checkbox(&mut self.show_clouds, lg.text("layers-clouds-toggle"));
+                            if self.show_clouds {
+                                ui.hyperlink_to(
+                                    lg.text("sidebar-cloud-source"),
+                                    "https://github.com/matteason/live-cloud-maps",
                                 );
                             }
                             ui.checkbox(&mut self.show_flights, lg.text("layers-flights-toggle"));
@@ -159,6 +158,7 @@ impl App {
                                 ui.hyperlink_to("OpenSky Network", "https://opensky-network.org/");
                                 ui.hyperlink_to("ADSB.lol (ODbL)", "https://www.adsb.lol/");
                             }
+                            ui.small(lg.text("layers-live-overlays-help"));
                         });
 
                     egui::CollapsingHeader::new(lg.text("navigation-section-title"))
@@ -272,7 +272,8 @@ impl App {
                                     self.cam.lon,
                                 )));
                             }
-                            let total = self.ruler_paths.distance_km(self.settings.earth_model);
+                            let model = self.active_earth_model();
+                            let total = self.ruler_paths.distance_km(model);
                             ui.label(
                                 lg.format(
                                     "ruler-measurement-summary",
@@ -287,9 +288,8 @@ impl App {
                                                 .ruler_unit
                                                 .format_with_angle(
                                                     total,
-                                                    self.ruler_paths.angular_distance_degrees(
-                                                        self.settings.earth_model,
-                                                    ),
+                                                    self.ruler_paths
+                                                        .angular_distance_degrees(model),
                                                     self.distance_units(),
                                                     lg,
                                                 )
@@ -304,9 +304,7 @@ impl App {
                                 "ruler-point-edit-help"
                             }));
                             if let Some(pair) = self.ruler_paths.last_leg() {
-                                let bearing = self
-                                    .settings
-                                    .earth_model
+                                let bearing = model
                                     .initial_bearing(pair[0], pair[1])
                                     .map(|bearing| {
                                         earthcraft_core::compass::heading_text(bearing, lg)

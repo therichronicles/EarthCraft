@@ -6,10 +6,82 @@ use earthcraft_core::{
 };
 use eframe::egui::{self, collapsing_header::CollapsingState};
 
-const TREE_MAX_HEIGHT_POINTS: f32 = 320.0;
+const TREE_MAX_HEIGHT_POINTS: f32 = 640.0;
+const DESCRIPTION_ROWS: usize = 3;
+const TREE_INDENT_POINTS: f32 = 8.0;
+const TREE_ICON_SIZE_POINTS: f32 = 12.0;
+const TREE_ITEM_GAP_POINTS: f32 = 2.0;
+
+fn compact_tree_style(ui: &mut egui::Ui) {
+    let row_height = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
+    let spacing = ui.spacing_mut();
+    spacing.indent = TREE_INDENT_POINTS;
+    spacing.item_spacing = egui::vec2(TREE_ITEM_GAP_POINTS, 0.0);
+    spacing.button_padding = egui::vec2(2.0, 0.0);
+    spacing.interact_size.y = row_height;
+    spacing.icon_width = TREE_ICON_SIZE_POINTS;
+    spacing.icon_width_inner = TREE_ICON_SIZE_POINTS - 4.0;
+    spacing.icon_spacing = TREE_ITEM_GAP_POINTS;
+}
+
+fn paint_icon(ui: &egui::Ui, rect: egui::Rect, folder: bool, stroke: egui::Stroke) {
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let rect = rect.shrink(1.0);
+    if folder {
+        let at = |x, y| rect.min + rect.size() * egui::vec2(x, y);
+        ui.painter().add(egui::Shape::closed_line(
+            vec![
+                at(0.0, 0.2),
+                at(0.0, 0.0),
+                at(0.4, 0.0),
+                at(0.55, 0.2),
+                at(1.0, 0.2),
+                at(1.0, 1.0),
+                at(0.0, 1.0),
+            ],
+            stroke,
+        ));
+    } else {
+        let center = egui::pos2(rect.center().x, rect.top() + rect.height() * 0.3);
+        let radius = rect.width() * 0.3;
+        ui.painter().circle_stroke(center, radius, stroke);
+        ui.painter().line_segment(
+            [
+                center + egui::vec2(0.0, radius),
+                egui::pos2(center.x, rect.bottom()),
+            ],
+            stroke,
+        );
+    }
+}
 enum Action {
     Delete(u64),
     Move(u64, Option<u64>),
+}
+
+fn description_editor(
+    ui: &mut egui::Ui,
+    id: u64,
+    description: &mut String,
+    lang: Lang,
+) -> egui::scroll_area::ScrollAreaOutput<egui::Response> {
+    let height = ui.text_style_height(&egui::TextStyle::Body) * DESCRIPTION_ROWS as f32
+        + 2.0 * ui.spacing().button_padding.y;
+    egui::ScrollArea::vertical()
+        .id_salt(("place-description", id))
+        .max_height(height)
+        .min_scrolled_height(height)
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            ui.add(
+                egui::TextEdit::multiline(description)
+                    .hint_text(lang.text("places-description-placeholder"))
+                    .desired_rows(DESCRIPTION_ROWS)
+                    .desired_width(f32::INFINITY),
+            )
+        })
 }
 
 fn row(
@@ -24,16 +96,33 @@ fn row(
     let folder = matches!(node.item, PlaceItem::Folder { .. });
     ui.checkbox(&mut node.visible, "")
         .on_hover_text(lang.text("places-visible-help"));
-    let icon = if folder { "▰" } else { "●" };
-    let response = ui.add_sized(
-        [ui.available_width(), ui.spacing().interact_size.y],
-        egui::Button::selectable(
-            *selected == Some(id),
-            (format!("{icon}  {}", node.name()), egui::Atom::grow()),
-        )
-        .truncate()
-        .sense(egui::Sense::click_and_drag()),
-    );
+    let icon_id = egui::Id::new("place-icon").with(id);
+    let button = egui::Button::selectable(
+        *selected == Some(id),
+        (
+            egui::Atom::custom(icon_id, egui::Vec2::splat(TREE_ICON_SIZE_POINTS)),
+            node.name(),
+            egui::Atom::grow(),
+        ),
+    )
+    .truncate()
+    .min_size(egui::vec2(
+        ui.available_width(),
+        ui.spacing().interact_size.y,
+    ))
+    .sense(egui::Sense::click_and_drag())
+    .atom_ui(ui);
+    if let Some(rect) = button.rect(icon_id) {
+        paint_icon(
+            ui,
+            rect,
+            folder,
+            ui.style()
+                .interact_selectable(&button.response, *selected == Some(id))
+                .fg_stroke,
+        );
+    }
+    let response = button.response.on_hover_text(node.name());
     if response.clicked() || response.secondary_clicked() {
         *selected = Some(id);
     }
@@ -84,7 +173,10 @@ fn nodes(
             });
         } else {
             ui.horizontal(|ui| {
+                let gap = ui.spacing().item_spacing.x;
+                ui.spacing_mut().item_spacing.x = 0.0;
                 ui.add_space(ui.spacing().indent);
+                ui.spacing_mut().item_spacing.x = gap;
                 row(ui, node, selected, action, goto, lang);
             });
         }
@@ -142,6 +234,7 @@ impl App {
             }
         });
         egui::Frame::group(ui.style()).show(ui, |ui| {
+            compact_tree_style(ui);
             ui.set_width(ui.available_width());
             let root = ui.add_sized(
                 [ui.available_width(), ui.spacing().interact_size.y],
@@ -160,6 +253,7 @@ impl App {
             egui::ScrollArea::vertical()
                 .id_salt("places-tree")
                 .max_height(TREE_MAX_HEIGHT_POINTS)
+                .auto_shrink([false, false])
                 .show(ui, |ui| {
                     nodes(
                         ui,
@@ -179,12 +273,7 @@ impl App {
         {
             ui.add_space(4.0);
             ui.add(egui::TextEdit::singleline(node.name_mut()).desired_width(f32::INFINITY));
-            ui.add(
-                egui::TextEdit::multiline(node.description_mut())
-                    .hint_text(lang.text("places-description-placeholder"))
-                    .desired_rows(2)
-                    .desired_width(f32::INFINITY),
-            );
+            description_editor(ui, id, node.description_mut(), lang);
             ui.horizontal(|ui| {
                 if let PlaceItem::Marker(pm) = &node.item
                     && ui.button(lang.text("placemarks-fly-to-action")).clicked()
@@ -211,64 +300,4 @@ impl App {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn row_selection_accepts_clicks_past_the_name() {
-        let ctx = egui::Context::default();
-        let mut node = PlaceNode::marker(Placemark {
-            name: "Peak".into(),
-            desc: String::new(),
-            lat: 27.0,
-            lon: 86.0,
-        });
-        let mut selection = None;
-        let mut action = None;
-        let mut goto = None;
-        let mut bounds = egui::Rect::NOTHING;
-        for frame in 0..4 {
-            let point = egui::pos2(bounds.max.x - 3.0, bounds.center().y);
-            let events = match frame {
-                2 | 3 => vec![
-                    egui::Event::PointerMoved(point),
-                    egui::Event::PointerButton {
-                        pos: point,
-                        button: egui::PointerButton::Primary,
-                        pressed: frame == 2,
-                        modifiers: egui::Modifiers::NONE,
-                    },
-                ],
-                _ => Vec::new(),
-            };
-            crate::app::test_ui::run(
-                &ctx,
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(320.0, 240.0),
-                    )),
-                    events,
-                    time: Some(f64::from(frame) * 0.1),
-                    ..Default::default()
-                },
-                |ui| {
-                    ui.horizontal(|ui| {
-                        bounds = row(
-                            ui,
-                            &mut node,
-                            &mut selection,
-                            &mut action,
-                            &mut goto,
-                            Lang::En,
-                        )
-                        .rect;
-                    });
-                },
-            );
-        }
-        assert!(bounds.width() > 250.0, "{bounds:?}");
-        assert_eq!(selection, Some(node.id()));
-        assert!(node.visible);
-        assert!(goto.is_none());
-    }
-}
+mod tests;

@@ -143,7 +143,7 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   out-of-range input without changing points. Delete or undo a selected point
   on the map: Apply must require reselection, never overwrite a shifted index.
   Enter submits a coordinate field; Escape/Close cancels unsubmitted input.
-  Repeat in both UI languages. Measurements follow the selected Earth model; the sphere remains the default.
+  Repeat in both UI languages. Measurements follow the selected Earth model; Realistic — WGS 84 (G2296) is the default.
   In Settings → Earth model, switch Perfect Sphere / Realistic — WGS 84 (G2296).
   Verify camera center/heading/altitude and ruler coordinates remain intact;
   totals, arc geometry, grid, labels, aircraft/weather and scale bar must agree
@@ -165,6 +165,12 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   hierarchy, order and visibility must survive without extra wrapper nesting.
   Check both languages and narrow/resized sidebars. Native tree interaction is
   separate from the automated core mutation and KML round-trip tests.
+  At the default sidebar width, expand six nested folders: rows and indentation
+  should remain compact, with distinct outlined folder and pin icons. Hover a
+  truncated name for its full text; selection must still cover the row's width.
+  Select a place with a long HTML description: its text remains editable in a
+  three-line scrolling viewport while the tree retains its taller area. Check
+  radar/cloud attribution directly beneath its matching layer toggle.
 - In Explorer, display large planet/sky images and load/save `.earthplanet` files;
   the UI should remain responsive while the file work runs. Check the busy
   indicator and disabled file controls, including after a failed operation.

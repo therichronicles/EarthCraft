@@ -94,8 +94,8 @@ Data owns JSON/XML decoding and longitude-first format adaptation. Invalid
 service coordinates are skipped; invalid KML coordinates return a typed error
 before an import completes or an export touches its destination. The editor adds/edits points through
 the same history. Input and editing preserve the stored f64 values without display
-rounding. The default remains the 6,371.0088 km sphere. An experimental persisted
-WGS 84 (G2296) option routes camera, picking, rendering, geographic overlays and
+rounding. Realistic — WGS 84 (G2296) is the default; the 6,371.0088 km sphere remains
+an optional model. The persisted selection routes camera, picking, rendering, geographic overlays and
 geodesics through core's Earth-model boundary; model changes invalidate compatible
 frame/overlay caches. See [Earth models](EARTH_MODELS.md) for supported calculations,
 reference-frame limits and extension points. Precise entry alone does not establish
@@ -125,7 +125,11 @@ repeated saves do not introduce additional Document wrappers. The existing
 first-coordinate policy for line/polygon Placemarks remains; this is not a
 lossless editor for unsupported KML geometry, styles or network links.
 The desktop draws disclosure arrows, full-width selectable rows and visibility
-checkboxes, with a details editor for the selection. Double-click flies to a
+checkboxes, with a details editor for the selection. Compact rows use eight-point
+indentation and vector folder/pin icons, independent of font glyph coverage.
+The tree reserves a scrollable 640-point height; descriptions use a separate
+three-line scrolling editor so long imported text cannot expand the sidebar.
+Double-click flies to a
 marker; drag onto a folder or My Places to move it. Creating a place/folder uses
 the selected folder, otherwise the root. Hidden ancestors suppress map markers
 without changing children's own visibility. File jobs capture the whole tree
