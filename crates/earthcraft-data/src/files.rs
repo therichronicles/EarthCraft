@@ -1,7 +1,9 @@
 //! Ordered, bounded file jobs; native dialogs and applying results stay in app.
 mod images;
+mod session;
 use earthcraft_core::{language::Lang, placemark::Places};
 pub use images::{ImageSource, ImageTarget, LoadedImage, PlanetSave};
+pub use session::RestoredKml;
 use std::{
     path::PathBuf,
     sync::{Arc, mpsc},
@@ -9,6 +11,9 @@ use std::{
 const PENDING_FILE_JOBS: usize = 4;
 
 pub enum FileOutcome {
+    KmlRestored {
+        files: Vec<RestoredKml>,
+    },
     KmlLoaded {
         path: PathBuf,
         placemarks: Places,
@@ -32,6 +37,7 @@ pub enum FileOutcome {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileKind {
+    RestoreKml,
     OpenKml,
     SaveKml,
     Screenshot,
@@ -44,6 +50,7 @@ pub struct FileCompletion {
     pub result: Result<FileOutcome, crate::Error>,
 }
 enum Job {
+    Restore(PathBuf, Lang),
     Open(PathBuf, Lang),
     Save(PathBuf, Places),
     Screenshot(PathBuf, u32, u32, Arc<Vec<u8>>),
@@ -54,6 +61,7 @@ enum Job {
 impl Job {
     fn kind(&self) -> FileKind {
         match self {
+            Self::Restore(..) => FileKind::RestoreKml,
             Self::Open(..) => FileKind::OpenKml,
             Self::Save(..) => FileKind::SaveKml,
             Self::Screenshot(..) => FileKind::Screenshot,
@@ -64,11 +72,14 @@ impl Job {
     }
     fn run(self) -> Result<FileOutcome, crate::Error> {
         match self {
+            Self::Restore(path, lang) => session::restore(&path, lang),
             Self::Open(path, lang) => {
+                let path = std::path::absolute(path)?;
                 let placemarks = crate::kml::load_kml(&path.to_string_lossy(), lang)?;
                 Ok(FileOutcome::KmlLoaded { path, placemarks })
             }
             Self::Save(path, marks) => {
+                let path = std::path::absolute(path)?;
                 if let Some(parent) = path.parent() {
                     std::fs::create_dir_all(parent)?;
                 }
@@ -144,6 +155,14 @@ impl FileJobs {
                 crate::Error::from("file service is unavailable")
             }
         })
+    }
+    /// Restore saved sources on the ordered file worker, without blocking the UI.
+    pub fn restore_kml(&self, lang: Lang) -> Result<(), crate::Error> {
+        self.reserve()?.send(Job::Restore(
+            crate::paths::cache_dir().join("open-kml.json"),
+            lang,
+        ));
+        Ok(())
     }
     pub fn open_kml(&self, path: PathBuf, lang: Lang) -> Result<(), crate::Error> {
         self.reserve()?.send(Job::Open(path, lang));

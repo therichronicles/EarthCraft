@@ -249,6 +249,9 @@ impl App {
                                 &[("path", short_folder(&self.settings.kml_dir).into())],
                             ))
                             .on_hover_text(&self.settings.kml_dir);
+                            if ui.button(lg.text("places-clear-all-action")).clicked() {
+                                self.clear_places();
+                            }
                         });
 
                     egui::CollapsingHeader::new(lg.text("ruler-section-title"))

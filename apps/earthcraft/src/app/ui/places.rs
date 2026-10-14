@@ -6,11 +6,19 @@ use earthcraft_core::{
 };
 use eframe::egui::{self, collapsing_header::CollapsingState};
 
-const TREE_MAX_HEIGHT_POINTS: f32 = 640.0;
+const TREE_HEIGHT_POINTS: f32 = 128.0;
 const DESCRIPTION_ROWS: usize = 3;
 const TREE_INDENT_POINTS: f32 = 8.0;
 const TREE_ICON_SIZE_POINTS: f32 = 12.0;
 const TREE_ITEM_GAP_POINTS: f32 = 2.0;
+
+fn tree_scroll_area() -> egui::ScrollArea {
+    egui::ScrollArea::vertical()
+        .id_salt("places-tree")
+        .max_height(TREE_HEIGHT_POINTS)
+        .min_scrolled_height(TREE_HEIGHT_POINTS)
+        .auto_shrink([false, false])
+}
 
 fn compact_tree_style(ui: &mut egui::Ui) {
     let row_height = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
@@ -250,23 +258,19 @@ impl App {
             if let Some(source) = root.dnd_release_payload::<u64>() {
                 action = Some(Action::Move(*source, None));
             }
-            egui::ScrollArea::vertical()
-                .id_salt("places-tree")
-                .max_height(TREE_MAX_HEIGHT_POINTS)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    nodes(
-                        ui,
-                        &mut self.placemarks.roots,
-                        &mut self.place_selection,
-                        &mut action,
-                        &mut goto,
-                        lang,
-                    );
-                    if self.placemarks.is_empty() {
-                        ui.weak(lang.text("places-empty-help"));
-                    }
-                });
+            tree_scroll_area().show(ui, |ui| {
+                nodes(
+                    ui,
+                    &mut self.placemarks.roots,
+                    &mut self.place_selection,
+                    &mut action,
+                    &mut goto,
+                    lang,
+                );
+                if self.placemarks.is_empty() {
+                    ui.weak(lang.text("places-empty-help"));
+                }
+            });
         });
         if let Some(id) = self.place_selection
             && let Some(node) = self.placemarks.find_mut(id)

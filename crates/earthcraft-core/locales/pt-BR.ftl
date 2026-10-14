@@ -403,6 +403,7 @@ places-root-name = Meus lugares
 places-document-name = Documento
 places-folder-name = Nova pasta
 places-add-folder-action = + Pasta
+places-clear-all-action = Limpar tudo
 places-delete-action = Excluir
 places-visible-help = Mostrar este lugar e seus filhos no globo
 places-empty-help = Abra um arquivo KML ou adicione um lugar. Arraste lugares para pastas para organizá-los.

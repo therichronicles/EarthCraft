@@ -157,6 +157,12 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   language/map text size, and resize. Verify updates without camera movement;
   late boundary patches and ruler/placemark edits must appear immediately.
 - Create placemarks; save/open/drop KML; export a screenshot and use the ruler.
+  Open several KML files, restart and verify their saved contents reopen in order.
+  Remove one source externally, restart and verify it is silently pruned from
+  `open-kml.json`; malformed/unreadable sources should report errors and remain
+  remembered. Clear All during a pending import must leave the tree empty, retain
+  source files and stay empty after restart. Restore Defaults must retain sources.
+  Save the combined tree to a new file and restart: no duplicate imports should appear.
   Import nested Documents/Folders (including empty folders and repeated names).
   Expand/collapse, select and edit names/descriptions, double-click a marker to
   fly, and toggle parent/child visibility. Move markers/folders by dragging onto

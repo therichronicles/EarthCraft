@@ -102,6 +102,74 @@ fn fixture() -> Fixture {
 }
 
 #[test]
+fn restore_reopens_sources_in_order_prunes_missing_and_retains_other_errors() {
+    let fixture = fixture();
+    let session = fixture.0.join("open-kml.json");
+    let mut paths = Vec::new();
+    // A single restoration job supports more documents than the queue capacity.
+    for index in 0..PENDING_FILE_JOBS + 2 {
+        let path = fixture.0.join(format!("{index}.kml"));
+        let mut places = Places::default();
+        places.push(earthcraft_core::placemark::Placemark {
+            name: format!("Source {index}"),
+            desc: String::new(),
+            lat: index as f64,
+            lon: 0.0,
+        });
+        crate::kml::save_kml(path.to_str().unwrap(), &places).unwrap();
+        paths.push(path);
+    }
+    paths.insert(1, fixture.0.join("missing.kml"));
+    paths.push(paths[0].clone());
+    let unreadable = fixture.0.join("directory.kml");
+    std::fs::create_dir(&unreadable).unwrap();
+    paths.push(unreadable.clone());
+    std::fs::write(&session, serde_json::to_vec(&paths).unwrap()).unwrap();
+    let runtime = crate::runtime::ServiceRuntime::new().unwrap();
+    let (wake_tx, wakes) = mpsc::channel();
+    let (jobs, results) = FileJobs::new(runtime.handle(), move || {
+        let _ = wake_tx.send(());
+    });
+    jobs.reserve()
+        .unwrap()
+        .send(Job::Restore(session, Lang::En));
+    let FileOutcome::KmlRestored { files } = results
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap()
+        .result
+        .unwrap()
+    else {
+        panic!("restored KML sources");
+    };
+    assert_eq!(files.len(), PENDING_FILE_JOBS + 3);
+    for (index, file) in files.iter().take(PENDING_FILE_JOBS + 2).enumerate() {
+        assert_eq!(
+            file.result.as_ref().unwrap().first().unwrap().name,
+            format!("Source {index}")
+        );
+    }
+    let failed = files.last().unwrap();
+    assert_eq!(failed.path, unreadable);
+    assert!(matches!(failed.result, Err(crate::Error::Io(_))));
+    wakes.recv_timeout(Duration::from_secs(10)).unwrap();
+}
+
+#[test]
+fn restore_accepts_a_missing_session_but_reports_corrupt_lists() {
+    let fixture = fixture();
+    let session = fixture.0.join("open-kml.json");
+    assert!(
+        matches!(Job::Restore(session.clone(), Lang::En).run().unwrap(),
+        FileOutcome::KmlRestored { files } if files.is_empty())
+    );
+    std::fs::write(&session, "invalid JSON").unwrap();
+    assert!(matches!(
+        Job::Restore(session, Lang::En).run(),
+        Err(crate::Error::Json(_))
+    ));
+}
+
+#[test]
 fn planet_jobs_preserve_original_encoded_assets_after_source_files_are_deleted() {
     let fixture = fixture();
     let texture = fixture.0.join("texture.jpg");

@@ -1,4 +1,38 @@
 use super::*;
+
+#[test]
+fn tree_reserves_its_height_even_near_the_bottom_of_the_sidebar() {
+    let ctx = egui::Context::default();
+    for rows in [1, 100] {
+        for _ in 0..3 {
+            crate::app::test_ui::run(
+                &ctx,
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(270.0, 500.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.add_space(400.0);
+                        let area = tree_scroll_area().show(ui, |ui| {
+                            for row in 0..rows {
+                                ui.label(format!("Place {row}"));
+                            }
+                        });
+                        assert!((area.inner_rect.height() - TREE_HEIGHT_POINTS).abs() < 1.0);
+                        if rows == 100 {
+                            assert!(area.content_size.y > area.inner_rect.height());
+                        }
+                    });
+                },
+            );
+        }
+    }
+}
+
 #[test]
 fn long_descriptions_stay_small_and_scroll_without_changing_the_text() {
     let ctx = egui::Context::default();

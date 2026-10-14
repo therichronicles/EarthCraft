@@ -98,6 +98,7 @@ pub(crate) struct App {
     place_selection: Option<u64>,
     new_name: String,
     kml_path: String,
+    kml_session: files::KmlSession,
     menu_pick: Option<(f64, f64)>,
 
     ruler: bool,
@@ -170,7 +171,7 @@ impl App {
             let ctx = cc.egui_ctx.clone();
             move || ctx.request_repaint()
         });
-        let app = App {
+        let mut app = App {
             #[cfg(target_os = "macos")]
             native_menu: None,
             explorer: explorer::Explorer::default(),
@@ -231,6 +232,7 @@ impl App {
             file_results,
             new_name: String::new(),
             kml_path: "placemarks.kml".into(),
+            kml_session: files::KmlSession::default(),
             menu_pick: None,
             ruler: false,
             ruler_drag: None,
@@ -266,6 +268,7 @@ impl App {
             ring_drag: false,
             runtime,
         };
+        app.restore_kml_session();
         #[cfg(target_os = "macos")]
         {
             app.with_native_menu(cc)
