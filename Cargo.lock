@@ -974,6 +974,7 @@ dependencies = [
  "emath",
  "fluent-bundle",
  "fluent-syntax",
+ "geographiclib-rs",
  "glam",
  "serde_json",
  "unic-langid",
@@ -1558,6 +1559,15 @@ dependencies = [
  "num-traits",
  "serde",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "geographiclib-rs"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5a7f08910fd98737a6eda7568e7c5e645093e073328eeef49758cfe8b0489c7"
+dependencies = [
+ "libm",
 ]
 
 [[package]]
