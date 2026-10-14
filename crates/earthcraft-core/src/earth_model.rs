@@ -28,7 +28,7 @@ pub enum SurfaceGeometry {
 }
 
 impl EarthModel {
-    pub const ALL: [Self; 2] = [Self::PerfectSphere, Self::Wgs84];
+    pub const ALL: [Self; 2] = [Self::Wgs84, Self::PerfectSphere];
     pub fn code(self) -> &'static str {
         match self {
             Self::PerfectSphere => "perfect_sphere",
