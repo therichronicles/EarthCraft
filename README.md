@@ -29,7 +29,7 @@ Anyway** for EarthCraft and confirm **Open**. See [Apple's instructions](https:/
 - Place and address search (Nominatim), plus direct "lat, lon" coordinate input
 - Animated fly-to (double-click, search or list)
 - Placemarks in an editable KML folder tree, with visibility controls and drag-to-folder organization
-- Selectable Earth model: Perfect Sphere (default) or experimental Realistic — WGS 84 (G2296)
+- Selectable Earth model: Realistic — WGS 84 (G2296) by default, with Perfect Sphere available as an alternative
 - Geodesic distance ruler (great-circle or ellipsoidal), with exact decimal-degree point entry/editing, undo/redo, separate paths (Alt-click), selectable metric, imperial, nautical, angular and novelty units and initial bearing for the last segment
 - Lat/lon grid with optional coordinate labels, atmosphere, stars, real-time sunlight (day/night)
 - Scale bar, cursor coordinates, PNG screenshot, context menu

@@ -2,7 +2,7 @@ use crate::EARTH_RADIUS_KM;
 use crate::METERS_PER_KM;
 use glam::DVec3;
 use std::time::{SystemTime, UNIX_EPOCH};
-const GREAT_CIRCLE_ANGLE_EPSILON_RAD: f64 = 1e-9;
+const ANTIPODAL_CROSS_EPSILON: f64 = 16.0 * f64::EPSILON;
 const SECONDS_PER_DAY: f64 = 86400.0;
 const UNIX_EPOCH_TO_J2000_DAYS: f64 = 10957.5;
 // Coefficients of the approximate solar-position model, in degrees and days.
@@ -37,18 +37,42 @@ pub fn haversine_km(a: (f64, f64), b: (f64, f64)) -> f64 {
     let dlat = la2 - la1;
     let dlon = (b.1 - a.1).to_radians();
     let h = (dlat / 2.0).sin().powi(2) + la1.cos() * la2.cos() * (dlon / 2.0).sin().powi(2);
+    // Haversine preserves short baselines, but asin(sqrt(h)) loses the
+    // complement of the angle as h approaches one. Use vector atan2 there.
+    if h > 0.5 {
+        let (pa, pb) = (ll_to_v3(a.0, a.1), ll_to_v3(b.0, b.1));
+        return EARTH_RADIUS_KM * pa.cross(pb).length().atan2(pa.dot(pb));
+    }
     2.0 * EARTH_RADIUS_KM * h.sqrt().min(1.0).asin()
 }
 pub fn great_circle(a: (f64, f64), b: (f64, f64), n: usize) -> Vec<DVec3> {
     let (pa, pb) = (ll_to_v3(a.0, a.1), ll_to_v3(b.0, b.1));
-    let om = pa.dot(pb).clamp(-1.0, 1.0).acos();
-    if om < GREAT_CIRCLE_ANGLE_EPSILON_RAD {
+    if n == 0 {
         return vec![pa];
     }
+    let cross = pa.cross(pb);
+    let sine = cross.length();
+    let cosine = pa.dot(pb);
+    let angle = sine.atan2(cosine);
+    // Exact antipodes have no unique shortest arc. Choose a deterministic plane;
+    // otherwise the cross product defines the arc, including tiny baselines.
+    let tangent = if sine <= ANTIPODAL_CROSS_EPSILON && cosine < 0.0 {
+        pa.any_orthonormal_vector()
+    } else if sine > 0.0 {
+        (cross / sine).cross(pa)
+    } else {
+        return vec![pa; n + 1];
+    };
     (0..=n)
         .map(|i| {
-            let t = i as f64 / n as f64;
-            (pa * ((1.0 - t) * om).sin() + pb * (t * om).sin()) * (1.0 / om.sin())
+            if i == 0 {
+                pa
+            } else if i == n {
+                pb
+            } else {
+                let (sine, cosine) = (angle * i as f64 / n as f64).sin_cos();
+                pa * cosine + tangent * sine
+            }
         })
         .collect()
 }

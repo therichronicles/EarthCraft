@@ -42,8 +42,10 @@ impl GpuRenderer {
             .expect("poll destroyed device");
     }
     pub(crate) fn supports(request: &RenderRequest) -> bool {
-        if request.basis.model != earthcraft_core::earth_model::EarthModel::PerfectSphere {
-            return false;
+        use earthcraft_core::{EARTH_RADIUS_KM, earth_model::SurfaceGeometry};
+        match request.basis.model.geometry() {
+            SurfaceGeometry::Sphere { radius_km } if radius_km == EARTH_RADIUS_KM => {}
+            SurfaceGeometry::Sphere { .. } | SurfaceGeometry::Ellipsoid { .. } => return false,
         }
 
         overview::supported_zoom(request).is_some()

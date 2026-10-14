@@ -1,5 +1,7 @@
 //! Independent f64 ray lanes; geographic/trigonometric sampling stays scalar.
-use earthcraft_core::{VERTICAL_FOV_HALF_TAN, camera::Basis, earth_model::EarthModel};
+use earthcraft_core::{
+    EARTH_RADIUS_KM, VERTICAL_FOV_HALF_TAN, camera::Basis, earth_model::SurfaceGeometry,
+};
 use glam::{DMat3, DVec3};
 use wide::f64x4;
 
@@ -9,7 +11,8 @@ pub(super) struct RayCaster {
     rotation: DMat3,
     aspect: f64,
     camera: DVec3,
-    model: EarthModel,
+    geometry: SurfaceGeometry,
+    inverse_axes_squared: DVec3,
     pub(super) camera_len_squared: f64,
     width: f64,
     height: f64,
@@ -26,21 +29,33 @@ pub(super) struct RaySample {
 }
 
 impl RayCaster {
-    pub(super) fn model_geometry(&self) -> earthcraft_core::earth_model::SurfaceGeometry {
-        self.model.geometry()
+    pub(super) fn model_geometry(&self) -> SurfaceGeometry {
+        self.geometry
+    }
+    pub(super) fn uses_unit_sphere(&self) -> bool {
+        // Keep this exhaustive: a new surface family needs an explicit kernel
+        // decision rather than falling through to the ellipsoid equations.
+        match self.geometry {
+            SurfaceGeometry::Sphere { radius_km } => radius_km == EARTH_RADIUS_KM,
+            SurfaceGeometry::Ellipsoid { .. } => false,
+        }
     }
     pub(super) fn new(width: usize, height: usize, basis: &Basis) -> Self {
+        let geometry = basis.model.geometry();
+        let inverse_axes_squared = geometry.inverse_axes_squared();
         Self {
             rotation: basis.rotation_from_view(),
             aspect: basis.aspect_ratio(),
             camera: basis.c,
-            model: basis.model,
-            camera_len_squared: if basis.model == EarthModel::PerfectSphere {
+            geometry,
+            inverse_axes_squared,
+            camera_len_squared: if geometry
+                == (SurfaceGeometry::Sphere {
+                    radius_km: EARTH_RADIUS_KM,
+                }) {
                 basis.c.length_squared()
             } else {
-                basis
-                    .c
-                    .dot(basis.c * basis.model.geometry().inverse_axes_squared())
+                basis.c.dot(basis.c * inverse_axes_squared)
             },
             width: width as f64,
             height: height as f64,
@@ -49,7 +64,7 @@ impl RayCaster {
 
     #[cfg(any(test, feature = "gpu"))]
     pub(super) fn cast(&self, first_x: usize, y: usize) -> [RaySample; RAY_LANES] {
-        if self.model == EarthModel::PerfectSphere {
+        if self.uses_unit_sphere() {
             self.cast_model::<false>(first_x, y)
         } else {
             self.cast_model::<true>(first_x, y)
@@ -127,11 +142,30 @@ impl RayCaster {
         })
     }
     fn cast_ellipsoid(&self, dx: f64x4, dy: f64x4, dz: f64x4) -> [RaySample; RAY_LANES] {
-        let q = self.model.geometry().inverse_axes_squared();
+        let q = self.inverse_axes_squared;
         let c = self.camera;
         let a = dx * dx * q.x + dy * dy * q.y + dz * dz * q.z;
         let b = dx * (c.x * q.x) + dy * (c.y * q.y) + dz * (c.z * q.z);
         let disc = b * b - a * (self.camera_len_squared - 1.0);
+        let camera_dot = (b / a.sqrt()).to_array();
+        let discriminant = disc.to_array();
+        let direction_x = dx.to_array();
+        let direction_y = dy.to_array();
+        let direction_z = dz.to_array();
+        // Overview sky packs need only directions and the scaled impact
+        // parameter for atmosphere. Skip surface positions/normals entirely.
+        let surface_lanes = disc.simd_ge(f64x4::ZERO) & b.simd_lt(f64x4::ZERO);
+        if surface_lanes.none() {
+            return std::array::from_fn(|lane| RaySample {
+                direction: DVec3::new(direction_x[lane], direction_y[lane], direction_z[lane]),
+                camera_dot: camera_dot[lane],
+                discriminant: discriminant[lane],
+                distance: 0.0,
+                point: DVec3::ZERO,
+                normal: DVec3::ZERO,
+                incidence: 0.0,
+            });
+        }
         let distance = (-b - disc.sqrt()) / a;
         let px = f64x4::splat(c.x) + dx * distance;
         let py = f64x4::splat(c.y) + dy * distance;
@@ -140,12 +174,7 @@ impl RayCaster {
         let reciprocal = f64x4::ONE / (nx * nx + ny * ny + nz * nz).sqrt();
         let (nx, ny, nz) = (nx * reciprocal, ny * reciprocal, nz * reciprocal);
         let incidence = (-(dx * nx + dy * ny + dz * nz)).max(f64x4::ZERO).to_array();
-        let (dx, dy, dz) = (dx.to_array(), dy.to_array(), dz.to_array());
-        let (dot, disc, distance) = (
-            (b / a.sqrt()).to_array(),
-            disc.to_array(),
-            distance.to_array(),
-        );
+        let distance = distance.to_array();
         let (px, py, pz, nx, ny, nz) = (
             px.to_array(),
             py.to_array(),
@@ -155,9 +184,9 @@ impl RayCaster {
             nz.to_array(),
         );
         std::array::from_fn(|lane| RaySample {
-            direction: DVec3::new(dx[lane], dy[lane], dz[lane]),
-            camera_dot: dot[lane],
-            discriminant: disc[lane],
+            direction: DVec3::new(direction_x[lane], direction_y[lane], direction_z[lane]),
+            camera_dot: camera_dot[lane],
+            discriminant: discriminant[lane],
             distance: distance[lane],
             point: DVec3::new(px[lane], py[lane], pz[lane]),
             normal: DVec3::new(nx[lane], ny[lane], nz[lane]),
@@ -169,6 +198,7 @@ impl RayCaster {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use earthcraft_core::earth_model::EarthModel;
     use earthcraft_core::{MAX_CAMERA_ALTITUDE_KM, MIN_CAMERA_ALTITUDE_KM, camera::Cam};
 
     #[test]

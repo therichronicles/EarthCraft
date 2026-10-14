@@ -1,10 +1,10 @@
 # Earth models
 
-Settings → Earth model offers **Perfect Sphere** (default) and
-**Realistic — WGS 84 (G2296)** (experimental). Preferences persist independently
+Settings → Earth model defaults to **Realistic — WGS 84 (G2296)**, with
+**Perfect Sphere** available as an alternative. Preferences persist independently
 of language and distance units. Unknown/malformed settings retain the existing
-selection; older preference files default to the sphere. Restoring defaults
-selects the sphere. Moon/custom-body geometry remains independent.
+selection; older preference files without a model use Realistic. Explicit saved
+selections remain intact. Restoring defaults selects Realistic. Moon/custom-body geometry remains independent.
 
 WGS 84 uses semi-major axis 6,378,137 m and inverse flattening 298.257223563.
 NGA identifies G2296 as its current realization, introduced on January 7, 2024
@@ -18,7 +18,7 @@ coordinates between realizations/epochs, apply station velocities or plate motio
 or add terrain/geoid heights. Camera altitude is height along the surface normal;
 aircraft telemetry retains its provider altitude without a vertical-datum conversion.
 Imagery and position sources retain their own accuracy and observation epochs.
-Consequently this experimental option alone does not establish survey accuracy.
+Consequently selecting this model alone does not establish survey accuracy.
 
 ## Ownership and geometry
 
@@ -31,8 +31,8 @@ radii, so UI distance conversions and other celestial bodies need no unit change
 | --- | --- | --- |
 | Geographic surface position | Original unit normal | Geodetic position on the WGS 84 ellipsoid |
 | Camera position/picking | Original sphere path | Surface normal height and ellipsoid intersection |
-| Surface distance/bearing/destination | Original spherical formulas | Cached GeographicLib/Karney solver |
-| Ruler path | Original great-circle samples | Ellipsoidal geodesic samples |
+| Surface distance/bearing/destination | Spherical formulas with stable near-antipodal distance | Cached GeographicLib/Karney solver |
+| Ruler path | Great-circle samples, including antipodes and tiny baselines | Ellipsoidal geodesic samples with shared route coefficients |
 | Degrees/arcseconds | Original mean-radius central angle | Geocentric angular separation per leg, summed across paths |
 | Flight | Original interpolation | Ellipsoidal distance, geodesic horizontal route and existing altitude easing |
 | Scale bar | Original altitude policy | Surface distance between the actual displayed endpoints |
@@ -42,9 +42,14 @@ handles direct/inverse geodesics, including nearly antipodal routes. Its coeffic
 initialize once and are shared. The UI keeps the existing undefined-bearing
 convention for coincident/antipodal points and starts at poles; internal flight
 routes use the solver's deterministic azimuth.
+Exact spherical antipodes also have multiple shortest routes; their displayed arc
+uses a deterministic plane. Both models retain exact path endpoints and return
+only the start point when asked for zero segments. The shared surface intersection
+helper selects the nearest forward hit and rejects invalid or zero-length rays.
 
-Render owns SIMD intersections, geographic texture/grid sampling, normal-based
-lighting, conservative indexed boundary culling and ruler/aircraft projection.
+Render owns SIMD intersections, geographic texture/grid sampling with separate
+meridional/prime-vertical curvature radii, normal-based lighting, conservative
+indexed boundary culling and ruler/aircraft projection.
 Static boundary indexes remain in unit-geodetic space; conservative displacement
 bounds and quadric horizon planes keep ellipsoidal candidates visible without
 building another dataset index. Weather uses the same model-aware picking.
@@ -59,10 +64,18 @@ existing background ownership/coalescing remain unchanged.
 ## Rendering cost and extension points
 
 The CPU chooses specialized sphere/ellipsoid row kernels before entering pixel
-loops. There is no per-pixel virtual model dispatch. The original sphere arithmetic
-and raster fixtures remain intact. The experimental GPU shader supports the sphere
+loops. Kernel selection matches surface geometry exhaustively, so adding a surface
+family requires an explicit decision. Ellipsoid ray coefficients are prepared once
+per frame. There is no per-pixel virtual model dispatch. The original sphere raster
+arithmetic and raster fixtures remain intact. The experimental GPU shader supports the sphere
 only; WGS 84 explicitly selects the CPU path, including when GPU was requested.
 Eframe's UI backend is independent of this choice.
+Ellipsoid sampling reuses the unit normal's sine/cosine for curvature, texture
+coordinates and grid widths instead of repeating angle/trigonometric conversions.
+All-sky ray batches retain atmosphere inputs while skipping unused surface positions
+and normals. Geographic calculations remain in f64, with no approximate
+trigonometry or reciprocal math. Isolated microbenchmarks and before/after capture
+checks are documented in [the performance baseline](PERFORMANCE_BASELINE.md).
 
 To add another spheroidal model/reference frame, register its stable identity in
 `EarthModel::ALL`, supply its labels/help, geometry and cached geodesic solver in
@@ -80,7 +93,9 @@ the ellipsoid kernel. This is an extension boundary, not an implemented disc mod
 
 Automated checks cover known WGS 84 equatorial/polar/antipodal lengths, direct/inverse
 round trips, geodetic surface positions, scalar/SIMD intersection agreement,
-cursor-anchored zoom, conservative culling, scale-bar endpoint distances, settings
+short/antipodal path sampling, a published GeographicLib direct/inverse example,
+forward/inside/on-surface/invalid rays, cursor-anchored zoom, conservative culling,
+scale-bar endpoint distances, settings
 round trips, model-dependent frame keys and GPU capability rejection. Existing
 sphere raster/missing-tile fixtures are unchanged. Tests use local data.
 

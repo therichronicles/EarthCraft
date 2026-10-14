@@ -258,7 +258,9 @@ mod tests {
         let requested = Cam { lon: 90.0, ..shown };
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
         let shown_basis = shown.basis(4.0 / 3.0);
-        let requested_basis = requested.basis(4.0 / 3.0);
+        let requested_basis =
+            requested.basis_for_model(4.0 / 3.0, earthcraft_core::earth_model::EarthModel::Wgs84);
+        assert!(displayed_basis(Some((shown, shown_basis)), requested_basis) == shown_basis);
         let pick = displayed_basis(Some((shown, shown_basis)), requested_basis)
             .pick(rect, rect.center())
             .unwrap();

@@ -36,20 +36,30 @@ pub(super) fn surface<const ELLIPSOID: bool>(
     let t = ray.distance;
     let cosinc = ray.incidence;
     let normal = if ELLIPSOID { ray.normal } else { ray.point };
+    let latitude_cosine = if ELLIPSOID {
+        normal.x.hypot(normal.y)
+    } else {
+        0.0
+    };
     let (lat, lon) = if ELLIPSOID {
         (
-            normal.z.atan2(normal.x.hypot(normal.y)).to_degrees(),
+            normal.z.atan2(latitude_cosine).to_degrees(),
             normal.y.atan2(normal.x).to_degrees(),
         )
     } else {
         v3_to_ll(ray.point)
     };
-    let coslat = lat.to_radians().cos().max(MIN_LOD_LATITUDE_COSINE);
+    let coslat = if ELLIPSOID {
+        latitude_cosine
+    } else {
+        lat.to_radians().cos()
+    }
+    .max(MIN_LOD_LATITUDE_COSINE);
     // Level of detail (LOD): softer grazing-angle limit and a sharpness bias,
     // which greatly enlarges the high-resolution area.
     let mpp = t * EARTH_RADIUS_M * pa / cosinc.max(MIN_LOD_INCIDENCE_COSINE).sqrt();
     let (meridional_km, prime_vertical_km) = if ELLIPSOID {
-        geometry.curvature_km(lat)
+        geometry.curvature_km_from_latitude_sine(normal.z)
     } else {
         (0.0, 0.0)
     };
@@ -80,7 +90,11 @@ pub(super) fn surface<const ELLIPSOID: bool>(
         WEB_MERCATOR_MAX_LATITUDE_DEG,
     );
     let u = ((lon + 180.0) / 360.0).rem_euclid(1.0);
-    let s = latc.to_radians().sin();
+    let s = if ELLIPSOID && lat == latc {
+        normal.z
+    } else {
+        latc.to_radians().sin()
+    };
     let v = 0.5 - ((1.0 + s) / (1.0 - s)).ln() / (4.0 * PI);
     let offset = Vec2::new(x as f32 - w as f32 / 2.0, y as f32 - h as f32 / 2.0);
     let dist = offset.length_squared();
@@ -94,7 +108,19 @@ pub(super) fn surface<const ELLIPSOID: bool>(
         };
         let thr = mpp / meridian_m_per_degree * GRID_LINE_WIDTH_PX;
         let dlat = (lat / st - (lat / st).round()).abs() * st;
-        let dlon = (lon / st - (lon / st).round()).abs() * st * lat.to_radians().cos().abs();
+        let grid_latitude_cosine = if ELLIPSOID {
+            latitude_cosine
+        } else {
+            lat.to_radians().cos().abs()
+        };
+        let dlon = (lon / st - (lon / st).round()).abs() * st * grid_latitude_cosine;
+        // Express east-west distance in meridional-degree units before comparing
+        // against the shared threshold. The two curvature radii differ on an ellipsoid.
+        let dlon = if ELLIPSOID {
+            dlon * (prime_vertical_km / meridional_km)
+        } else {
+            dlon
+        };
         dlat < thr || dlon < thr
     } else {
         false
@@ -150,4 +176,92 @@ pub(super) fn sky(ray: &rays::RaySample, cc: f64, cfg: &RenderCfg) -> Vec4 {
         }
     }
     col
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use earthcraft_core::{camera::Cam, earth_model::EarthModel};
+
+    #[test]
+    fn ellipsoid_texture_coordinates_match_geodetic_mercator_reference() {
+        let model = EarthModel::Wgs84;
+        let cfg = RenderCfg {
+            provider: Provider::Satellite,
+            rel: 0,
+            grid: false,
+            grid_step: 10.0,
+            atmo: false,
+            sun: None,
+        };
+        for latitude in [
+            -90.0_f64,
+            -85.05112878,
+            -45.0,
+            -0.0001,
+            0.0,
+            45.0,
+            85.05112878,
+            89.999,
+            90.0,
+        ] {
+            for longitude in [-179.9, 0.0, 179.9] {
+                let basis = Cam {
+                    lat: latitude,
+                    lon: longitude,
+                    heading: 25.0,
+                    alt: 0.15,
+                }
+                .basis_for_model(1.0, model);
+                let rays = RayCaster::new(1, 1, &basis);
+                let pixel =
+                    surface::<true>(0, 0, 1, 1, &rays.cast(0, 0)[0], &cfg, model.geometry());
+                let expected_u = (longitude + 180.0) / 360.0;
+                // Equivalent independent form of the spherical Mercator ordinate.
+                let latitude = latitude.clamp(
+                    -WEB_MERCATOR_MAX_LATITUDE_DEG,
+                    WEB_MERCATOR_MAX_LATITUDE_DEG,
+                );
+                let expected_v = 0.5 - latitude.to_radians().tan().asinh() / (2.0 * PI);
+                assert!((pixel.u - expected_u).abs() < 1e-12);
+                assert!((pixel.v - expected_v).abs() < 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn ellipsoid_meridians_use_east_west_surface_distance_for_grid_width() {
+        let model = EarthModel::Wgs84;
+        let altitude_km = 1.0;
+        let threshold_m =
+            altitude_km * METERS_PER_KM * 2.0 * VERTICAL_FOV_HALF_TAN * GRID_LINE_WIDTH_PX;
+        let cfg = RenderCfg {
+            provider: Provider::Satellite,
+            rel: 0,
+            grid: true,
+            grid_step: 1.0,
+            atmo: false,
+            sun: None,
+        };
+        // Stay midway between parallels so only the prime meridian can mark
+        // this pixel. Distances straddle its physical line-width threshold.
+        for (fraction, expected) in [(0.998, true), (1.002, false)] {
+            let (lat, lon) =
+                model.destination((0.5, 0.0), 90.0, threshold_m * fraction / METERS_PER_KM);
+            let basis = Cam {
+                lat,
+                lon,
+                heading: 0.0,
+                alt: altitude_km,
+            }
+            .basis_for_model(1.0, model);
+            let rays = RayCaster::new(1, 1, &basis);
+            let ray = &rays.cast(0, 0)[0];
+            let pixel = surface::<true>(0, 0, 1, 1, ray, &cfg, model.geometry());
+            assert_eq!(
+                pixel.grid, expected,
+                "{fraction} of the line-width threshold"
+            );
+        }
+    }
 }

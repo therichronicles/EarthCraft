@@ -166,7 +166,9 @@ mod tests {
     #[test]
     fn earth_models_roundtrip_and_tolerate_unknown_preferences() {
         let mut settings = Settings::default();
-        assert_eq!(settings.earth_model, EarthModel::PerfectSphere);
+        assert_eq!(settings.earth_model, EarthModel::Wgs84);
+        settings.apply_json(br#"{}"#).unwrap();
+        assert_eq!(settings.earth_model, EarthModel::Wgs84);
         for model in EarthModel::ALL {
             settings.earth_model = model;
             let mut restored = Settings::default();

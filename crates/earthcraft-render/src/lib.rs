@@ -289,6 +289,7 @@ fn render_pixels_into(
     buf.resize(w * h * RGBA_CHANNELS, 0);
     let row_bytes = w * RGBA_CHANNELS;
     let rays = RayCaster::new(w, h, basis);
+    let unit_sphere = rays.uses_unit_sphere();
     let per_batch: Vec<Vec<(TileKey, Option<f32>)>> = buf
         .par_chunks_mut(row_bytes * ROWS_PER_TILE_BATCH)
         .enumerate()
@@ -300,7 +301,7 @@ fn render_pixels_into(
                 map: HashMap::default(),
             };
             for (offset, row) in rows.chunks_mut(row_bytes).enumerate() {
-                if basis.model == earthcraft_core::earth_model::EarthModel::PerfectSphere {
+                if unit_sphere {
                     render_row::<false>(
                         batch * ROWS_PER_TILE_BATCH + offset,
                         w,

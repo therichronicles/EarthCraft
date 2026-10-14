@@ -1,5 +1,6 @@
 //! Manual CPU-frame comparison using isolated disk-cache fixtures and production APIs.
 use super::*;
+mod kernels;
 use earthcraft_core::{camera::Cam, math::now_unix};
 use std::{
     hint::black_box,

@@ -1,18 +1,20 @@
 //! Earth surface geometry and geodesics. World coordinates retain mean-radius units.
 //! Reference-frame metadata does not transform epochs or model crustal motion.
 use crate::{EARTH_RADIUS_KM, METERS_PER_KM, compass, math};
-use geographiclib_rs::{DirectGeodesic, Geodesic, InverseGeodesic};
+use geographiclib_rs::{DirectGeodesic, Geodesic, GeodesicLine, InverseGeodesic, capability};
 use glam::DVec3;
 use std::sync::LazyLock;
 
 const WGS84_SEMI_MAJOR_KM: f64 = 6378.137;
 const WGS84_INVERSE_FLATTENING: f64 = 298.257223563;
+// Roundoff in the dimensionless surface equation p·Qp = 1 (about 6 nm on Earth).
+const SURFACE_RESIDUAL_EPSILON: f64 = 8.0 * f64::EPSILON;
 static WGS84_GEODESIC: LazyLock<Geodesic> = LazyLock::new(Geodesic::wgs84);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EarthModel {
-    #[default]
     PerfectSphere,
+    #[default]
     Wgs84,
 }
 
@@ -109,21 +111,42 @@ impl EarthModel {
         let b = self.geometry().position(end.0, end.1).normalize();
         a.cross(b).length().atan2(a.dot(b)).to_degrees()
     }
+    /// Equally spaced shortest-route samples, including both exact endpoints.
+    /// Zero segments returns only the start; antipodal ties use a deterministic route.
     pub fn path(self, start: (f64, f64), end: (f64, f64), segments: usize) -> Vec<DVec3> {
-        if self == Self::PerfectSphere {
-            return math::great_circle(start, end, segments);
+        let geodesic = match self {
+            Self::PerfectSphere => return math::great_circle(start, end, segments),
+            Self::Wgs84 => &*WGS84_GEODESIC,
+        };
+        let geometry = self.geometry();
+        if segments == 0 {
+            return vec![geometry.position(start.0, start.1)];
         }
         let (meters, azimuth, _, _): (f64, f64, f64, f64) =
-            WGS84_GEODESIC.inverse(start.0, start.1, end.0, end.1);
+            geodesic.inverse(start.0, start.1, end.0, end.1);
+        // Prepare the route coefficients once instead of rebuilding a direct
+        // solver for every sample. _gen_position is the port's typed public API.
+        let outputs = capability::LATITUDE | capability::LONGITUDE;
+        let line = GeodesicLine::new(
+            geodesic,
+            start.0,
+            start.1,
+            azimuth,
+            Some(outputs | capability::DISTANCE_IN),
+            None,
+            None,
+        );
         (0..=segments)
             .map(|index| {
-                let (lat, lon): (f64, f64) = WGS84_GEODESIC.direct(
-                    start.0,
-                    start.1,
-                    azimuth,
-                    meters * index as f64 / segments.max(1) as f64,
-                );
-                self.geometry().position(lat, lon)
+                if index == 0 {
+                    geometry.position(start.0, start.1)
+                } else if index == segments {
+                    geometry.position(end.0, end.1)
+                } else {
+                    let (_, lat, lon, ..) =
+                        line._gen_position(false, meters * index as f64 / segments as f64, outputs);
+                    geometry.position(lat, lon)
+                }
             })
             .collect()
     }
@@ -188,19 +211,52 @@ impl SurfaceGeometry {
             }
         }
     }
+    /// Nearest forward ray intersection, including rays starting inside the surface.
+    /// Direction need not be normalized; invalid or zero-length rays have no hit.
     pub fn intersect(self, origin: DVec3, direction: DVec3) -> Option<DVec3> {
+        if !origin.is_finite() || !direction.is_finite() {
+            return None;
+        }
         let q = self.inverse_axes_squared();
         let a = direction.dot(q * direction);
         let b = origin.dot(q * direction);
         let c = origin.dot(q * origin) - 1.0;
-        let discriminant = b * b - a * c;
-        if discriminant < 0.0 || b > 0.0 {
+        if a <= 0.0 || !a.is_finite() || !b.is_finite() || !c.is_finite() {
             return None;
         }
-        Some(origin + direction * ((-b - discriminant.sqrt()) / a))
+        // A surface point can round just inside/outside the quadric. Treat it
+        // as a zero-distance hit instead of selecting the opposite hemisphere.
+        if c.abs() <= SURFACE_RESIDUAL_EPSILON {
+            return Some(origin);
+        }
+        let discriminant = b * b - a * c;
+        if !discriminant.is_finite() || discriminant < 0.0 {
+            return None;
+        }
+        // The product of the roots is c/a. Computing the small root from the
+        // other root avoids subtracting nearly equal terms close to the surface.
+        let root = -b - discriminant.sqrt().copysign(b);
+        let distance = if root == 0.0 {
+            0.0
+        } else {
+            let (first, second) = (root / a, c / root);
+            let near = first.min(second);
+            if near >= 0.0 { near } else { first.max(second) }
+        };
+        (distance >= 0.0 && distance.is_finite()).then(|| origin + direction * distance)
     }
     /// Local meridional and prime-vertical curvature radii, in kilometers.
     pub fn curvature_km(self, latitude_deg: f64) -> (f64, f64) {
+        match self {
+            Self::Sphere { radius_km } => (radius_km, radius_km),
+            Self::Ellipsoid { .. } => {
+                self.curvature_km_from_latitude_sine(latitude_deg.to_radians().sin())
+            }
+        }
+    }
+    /// Curvature when the sine of geodetic latitude is already available from a
+    /// unit surface normal. Avoids converting that normal through angles again.
+    pub fn curvature_km_from_latitude_sine(self, latitude_sine: f64) -> (f64, f64) {
         match self {
             Self::Sphere { radius_km } => (radius_km, radius_km),
             Self::Ellipsoid {
@@ -208,8 +264,7 @@ impl SurfaceGeometry {
                 flattening,
             } => {
                 let eccentricity_squared = flattening * (2.0 - flattening);
-                let denominator =
-                    1.0 - eccentricity_squared * latitude_deg.to_radians().sin().powi(2);
+                let denominator = 1.0 - eccentricity_squared * latitude_sine.powi(2);
                 let root = denominator.sqrt();
                 (
                     semi_major_km * (1.0 - eccentricity_squared) / (denominator * root),
@@ -221,38 +276,4 @@ impl SurfaceGeometry {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn known_geodesics_distinguish_models_and_cover_antipodes() {
-        let model = EarthModel::Wgs84;
-        assert!((model.distance_km((90.0, 0.0), (-90.0, 0.0)) - 20003.931458625).abs() < 1e-8);
-        assert!((model.distance_km((0.0, 0.0), (0.0, 1.0)) - 111.319490793).abs() < 1e-8);
-        assert!((model.distance_km((0.0, 0.0), (0.0, 180.0)) - 20003.931458625).abs() < 1e-8);
-        for end in [(0.01, 179.99), (89.99, 20.0), (-35.0, -179.9)] {
-            let start = (10.0, 1.0);
-            let bearing = model.initial_bearing(start, end).unwrap();
-            let actual = model.destination(start, bearing, model.distance_km(start, end));
-            assert!((actual.0 - end.0).abs() < 1e-10 && (actual.1 - end.1).abs() < 1e-10);
-        }
-        assert_eq!(
-            EarthModel::PerfectSphere.distance_km((0.0, 0.0), (0.0, 1.0)),
-            math::haversine_km((0.0, 0.0), (0.0, 1.0))
-        );
-    }
-    #[test]
-    fn surface_coordinates_normals_and_intersections_agree() {
-        for model in EarthModel::ALL {
-            let geometry = model.geometry();
-            for (lat, lon) in [(0.0, 0.0), (45.0, 179.9), (89.999, -179.9), (-90.0, 60.0)] {
-                let point = geometry.position(lat, lon);
-                let normal = math::ll_to_v3(lat, lon);
-                let hit = geometry.intersect(point + normal * 0.1, -normal).unwrap();
-                assert!(hit.abs_diff_eq(point, 1e-12));
-                let (a, b) = geometry.coordinates(hit);
-                assert!((a - lat).abs() < 1e-8 && (b - lon).abs() < 1e-8);
-                assert!((point.dot(point * geometry.inverse_axes_squared()) - 1.0).abs() < 1e-14);
-            }
-        }
-    }
-}
+mod tests;

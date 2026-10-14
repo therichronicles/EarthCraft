@@ -396,8 +396,8 @@ ruler-point-close-action = Fechar
 settings-earth-model-label = Modelo da Terra
 earth-model-sphere = Esfera perfeita
 earth-model-wgs84 = Realista — WGS 84 (G2296)
-earth-model-sphere-help = Esfera original de raio médio. Modelo padrão da Terra.
-earth-model-wgs84-help = Geometria e geodésicas experimentais no elipsoide WGS 84. Referencial G2296: EPSG:10606 (2D), EPSG:10605 (3D); sem transformações de época, movimento tectônico, relevo ou alturas geoidais. Usa o renderizador de globo na CPU.
+earth-model-sphere-help = Esfera original de raio médio. Alternativa opcional ao modelo realista da Terra.
+earth-model-wgs84-help = Modelo padrão da Terra, com geometria e geodésicas no elipsoide WGS 84. Referencial G2296: EPSG:10606 (2D), EPSG:10605 (3D); sem transformações de época, movimento tectônico, relevo ou alturas geoidais. Usa o renderizador de globo na CPU.
 
 places-root-name = Meus lugares
 places-document-name = Documento
