@@ -121,6 +121,7 @@ fn restore_reopens_sources_in_order_prunes_missing_and_retains_other_errors() {
         paths.push(path);
     }
     paths.insert(1, fixture.0.join("missing.kml"));
+    paths.insert(2, fixture.0.join("missing.kmz"));
     paths.push(paths[0].clone());
     let unreadable = fixture.0.join("directory.kml");
     std::fs::create_dir(&unreadable).unwrap();

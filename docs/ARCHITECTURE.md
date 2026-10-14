@@ -135,13 +135,14 @@ the selected folder, otherwise the root. Hidden ancestors suppress map markers
 without changing children's own visibility. File jobs capture the whole tree
 at submission; decoding, encoding and filesystem work stay off the UI thread.
 KML/KMZ I/O and screenshot encoding use an ordered bounded file service.
-KMZ uses ZIP with Stored/Deflate support, preferring root `doc.kml` or the first
-KML entry in archive order. The decompressed document is capped at 64 MiB and
-parsed by the same GeoRust KML pipeline; archives are never extracted.
-The archive adapter retains XML preprocessing for folder visibility, empty Points
-and truncated containers, which `KmlReader::from_kmz_path` cannot apply. Export
-writes the supported places tree as compressed `doc.kml`. Embedded resources,
-styles and network links retain the existing KML importer limitations. Native dialogs
+KMZ imports use GeoRust's `KmlReader::from_kmz_path`, which selects the first
+KML entry in archive order without extracting resources to disk. Reader errors
+are reported directly; KMZ does not use the plain-KML XML repair pass. Folder
+visibility and malformed-document handling follow the upstream reader's behavior.
+Export writes the supported places tree as compressed `doc.kml`; its ZIP writer
+shares GeoRust's ZIP dependency version. Embedded resources, styles and network
+links retain the existing importer limitations.
+Native dialogs
 and result application belong to the app. Settings/language writes coalesce on a
 filesystem worker and flush at shutdown; startup reads the small preference files.
 Open KML source paths are stored separately in `open-kml.json` by that worker.

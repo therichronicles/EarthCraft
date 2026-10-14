@@ -39,8 +39,9 @@ fluent-syntax = "0.12.0"
 unic-langid = "0.9.6"
 unicode-normalization = "0.1.25"
 quick-xml = "0.42.0"
-kml = { version = "0.14.0", default-features = false }
-zip = { version = "9.0.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+kml = { version = "0.14.0", default-features = false, features = ["zip"] }
+# Match GeoRust KML's ZIP dependency; the direct dependency writes KMZ exports.
+zip = { version = "2.4.2", default-features = false, features = ["deflate"] }
 rayon = "1.12.0"
 rstar = "0.13.0"
 geo-index = "0.4.0"

@@ -209,6 +209,10 @@ fn parse_tree(txt: &str, lg: Lang) -> Result<Places, crate::Error> {
         Err(::kml::Error::NoElements) => return Ok(Places::default()),
         Err(error) => return Err(error.into()),
     };
+    places_from_document(document, lg)
+}
+
+fn places_from_document(document: Kml<f64>, lg: Lang) -> Result<Places, crate::Error> {
     let mut out = Vec::new();
     collect(document, lg, &mut out)?;
     Ok(Places { roots: out })
@@ -222,12 +226,16 @@ fn is_kmz(path: &str) -> bool {
 }
 
 pub fn load_kml(path: &str, lg: Lang) -> Result<Places, crate::Error> {
-    let xml = if is_kmz(path) {
-        kmz::read(path)?
+    if is_kmz(path) {
+        let mut reader = KmlReader::<_, f64>::from_kmz_path(path).map_err(|error| match error {
+            // Preserve NotFound for startup pruning of missing KMZ sources.
+            ::kml::Error::IoError(error) => crate::Error::Io(error),
+            error => error.into(),
+        })?;
+        places_from_document(reader.read()?, lg)
     } else {
-        std::fs::read_to_string(path)?
-    };
-    parse_tree(&xml, lg)
+        parse_tree(&std::fs::read_to_string(path)?, lg)
+    }
 }
 
 #[cfg(test)]
