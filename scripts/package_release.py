@@ -9,6 +9,7 @@ import plistlib
 import re
 import shutil
 import subprocess
+import struct
 import tarfile
 import tempfile
 import tomllib
@@ -20,7 +21,7 @@ TARGETS = {
     "aarch64-unknown-linux-gnu": "linux-arm64",
     "x86_64-pc-windows-msvc": "windows-x64-portable",
     "aarch64-pc-windows-msvc": "windows-arm64-portable",
-    "universal-apple-darwin": "macos-universal",
+    "aarch64-apple-darwin": "macos-arm64",
 }
 VERSION = re.compile(
     r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
@@ -54,10 +55,14 @@ def package(version, target, binary, output):
         raise ValueError(f"Unsupported target: {target}")
     if not binary.is_file():
         raise ValueError(f"Release executable does not exist: {binary}")
-    if target == "universal-apple-darwin":
-        subprocess.run(
-            ["lipo", str(binary), "-verify_arch", "arm64", "x86_64"], check=True
-        )
+    if target == "aarch64-apple-darwin":
+        # Require a thin ARM64 Mach-O executable.
+        mach_o_64_magic = 0xFEEDFACF
+        cpu_type_arm64 = 0x0100000C
+        with binary.open("rb") as stream:
+            header = stream.read(8)
+        if header != struct.pack("<II", mach_o_64_magic, cpu_type_arm64):
+            raise ValueError("macOS release executable must be an ARM64 Mach-O binary")
     output.mkdir(parents=True, exist_ok=True)
     name = f"earthcraft-{version}-{TARGETS[target]}"
     extension = ".dmg" if "apple" in target else ".tar.gz" if "linux" in target else ".zip"

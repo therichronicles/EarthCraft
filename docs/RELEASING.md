@@ -18,20 +18,17 @@ application binaries: every release still builds and packages its tagged source.
 | Linux ARM64 | `earthcraft-0.1.0-linux-arm64.tar.gz` |
 | Windows x86-64 | `earthcraft-0.1.0-windows-x64-portable.zip` |
 | Windows ARM64 | `earthcraft-0.1.0-windows-arm64-portable.zip` |
-| macOS Intel and Apple Silicon | `earthcraft-0.1.0-macos-universal.dmg` containing `EarthCraft.app` |
+| macOS Apple Silicon (ARM64) | `earthcraft-0.1.0-macos-arm64.dmg` containing `EarthCraft.app` |
 
 One `SHA256SUMS.txt` lists all five release archives. Preview artifacts retain
 individual `.sha256` files; publication verifies and consolidates them.
 GitHub also provides its standard source-code archives. Linux builds run
 on Ubuntu 22.04; GTK 3 and a working graphics driver are runtime requirements.
 macOS bundles target macOS 11 or newer and are ad-hoc signed, without a
-Developer ID certificate or notarization. Intel and Apple Silicon
-executables build separately, then `lipo` combines them into the universal bundle.
-Packaging verifies that both architectures are present, embeds the padded macOS
-icon, and signs and verifies the combined app after assembly. Ad-hoc signing
-does not establish a trusted publisher or remove Gatekeeper prompts.
-The separate macOS build
-artifacts are intermediate files and are not published as release downloads.
+Developer ID certificate or notarization. The ARM64 build packages `EarthCraft.app`
+directly into a DMG. Packaging verifies its ARM64 Mach-O header, embeds the padded
+macOS icon, then signs and verifies the assembled app. Ad-hoc signing does not
+establish a trusted publisher or remove Gatekeeper prompts.
 Windows/Linux archives contain just the executable at their root. On macOS,
 open the DMG and drag EarthCraft along the arrow onto the Applications shortcut.
 The window opens in icon view with the app on the left and Applications on the
@@ -63,7 +60,7 @@ system-wide is not required.
 
 Pull requests changing the release workflow, packaging code/tests, changelog
 configuration, macOS icon or this guide run
-six native architecture builds and upload preview artifacts without publishing
+five native architecture builds and upload preview artifacts without publishing
 a release.
 After merge, the Actions page also offers a manual **Release** run with the same
 preview-only behavior. Inspect and test these artifacts before creating a version tag.
@@ -79,7 +76,7 @@ its friendly platform name from the table above.
 2. From the reviewed commit, create and push the matching tag, for example
    `git tag v0.1.0` followed by `git push upstream v0.1.0`.
 3. The workflow requires the tag to equal `v` plus the workspace version.
-   All six native builds, universal macOS packaging and archive checksums must
+   All five native builds, application packaging and archive checksums must
    succeed before publication.
 4. Publication first creates a draft with GitHub-generated release notes, uploads the complete
    artifact set, then publishes it. Versions containing a prerelease suffix are
@@ -156,24 +153,21 @@ python3 scripts/package_release.py package --version 0.1.0 --target x86_64-unkno
 
 Use the target and executable name for your native platform. For explicit-target
 builds, the executable lives under `target/<target>/release/`.
-The helper packages binaries; it does not cross-compile them. The universal macOS
-packaging target additionally requires `lipo`, `codesign`, `hdiutil` and the
-packaging-only Python tool `dmgbuild==1.6.7`. It verifies
-both architecture slices, signs the app, creates a compressed read-only DMG and
-verifies the disk image.
+The helper packages binaries; it does not cross-compile them. macOS packaging
+requires `codesign`, `hdiutil` and the packaging-only Python tool
+`dmgbuild==1.6.7`. It verifies the thin ARM64 executable, signs the app, creates
+a compressed read-only DMG and verifies the disk image.
 
 `dmgbuild` writes the Finder layout directly, using the white background and gray
 arrow in `assets/macos/dmg-background{,@2x}.png` and an `/Applications` symlink. No
 Finder automation or app runtime dependency is needed. The standard and Retina
 backgrounds are checked-in image assets; packaging uses them directly.
-To reproduce the universal macOS artifact:
+To reproduce the Apple Silicon macOS artifact:
 
 ```sh
 python3 -m venv /tmp/earthcraft-packaging
 /tmp/earthcraft-packaging/bin/python -m pip install dmgbuild==1.6.7
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
+rustup target add aarch64-apple-darwin
 MACOSX_DEPLOYMENT_TARGET=11.0 cargo build -p earthcraft --release --no-default-features --locked --target aarch64-apple-darwin
-MACOSX_DEPLOYMENT_TARGET=11.0 cargo build -p earthcraft --release --no-default-features --locked --target x86_64-apple-darwin
-lipo -create target/aarch64-apple-darwin/release/earthcraft target/x86_64-apple-darwin/release/earthcraft -output /tmp/earthcraft-universal
-/tmp/earthcraft-packaging/bin/python scripts/package_release.py package --version 0.1.0 --target universal-apple-darwin --binary /tmp/earthcraft-universal --output /tmp/earthcraft-release
+/tmp/earthcraft-packaging/bin/python scripts/package_release.py package --version 0.1.0 --target aarch64-apple-darwin --binary target/aarch64-apple-darwin/release/earthcraft --output /tmp/earthcraft-release
 ```

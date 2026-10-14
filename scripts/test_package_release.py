@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import tarfile
 import tempfile
+import struct
 import unittest
 import zipfile
 
@@ -20,7 +21,7 @@ class ReleasePackagingTests(unittest.TestCase):
             version = release.workspace_version()
             for target in release.TARGETS:
                 if "apple" in target:
-                    continue  # Universal Mach-O/signing is verified on macOS separately.
+                    continue  # Native Mach-O/signing is verified on macOS separately.
                 with self.subTest(target=target):
                     output = root / target
                     release.package(version, target, binary, output)
@@ -45,6 +46,23 @@ class ReleasePackagingTests(unittest.TestCase):
                     self.assertEqual(
                         archive.with_name(archive.name + ".sha256").read_bytes(),
                         f"{expected}  {archive.name}\n".encode("utf-8"),
+                    )
+
+    def test_macos_rejects_invalid_architecture_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "binary"
+            for header in [
+                b"invalid",
+                struct.pack("<II", 0xFEEDFACF, 0x01000007),
+                bytes.fromhex("ca fe ba be 00 00 00 02"),
+            ]:
+                binary.write_bytes(header)
+                with self.subTest(header=header), self.assertRaisesRegex(
+                    ValueError, "ARM64 Mach-O"
+                ):
+                    release.package(
+                        release.workspace_version(), "aarch64-apple-darwin", binary, root / "out"
                     )
 
     def test_version_and_binary_validation(self):

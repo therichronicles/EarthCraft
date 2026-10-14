@@ -77,9 +77,6 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             executable: earthcraft
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            executable: earthcraft
     env:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
     steps:
@@ -101,54 +98,21 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pkg-config libgtk-3-dev libxkbcommon-dev libwayland-dev libx11-dev
       - name: Build CPU-only release binary
         run: cargo build -p earthcraft --release --no-default-features --locked --target ${{ matrix.target }}
-      - name: Package application
-        if: runner.os != 'macOS'
-        run: python scripts/package_release.py package --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/${{ matrix.executable }} --output dist
-      - name: Stage macOS architecture for the universal bundle
+      - name: Install macOS packaging tools
         if: runner.os == 'macOS'
-        run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/earthcraft dist/earthcraft
+        run: python -m pip install dmgbuild==1.6.7
+      - name: Package application
+        run: python scripts/package_release.py package --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/${{ matrix.executable }} --output dist
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ endsWith(matrix.target, '-apple-darwin') && format('build-{0}-{1}', needs.version.outputs.version, matrix.target) || format('earthcraft-{0}-{1}', needs.version.outputs.version, matrix.target) }}
-          path: dist/*
-          if-no-files-found: error
-          retention-days: 7
-
-  macos-universal:
-    name: Package universal macOS app
-    needs: [version, build]
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-      - uses: actions/download-artifact@v8
-        with:
-          name: build-${{ needs.version.outputs.version }}-aarch64-apple-darwin
-          path: macos/arm64
-      - uses: actions/download-artifact@v8
-        with:
-          name: build-${{ needs.version.outputs.version }}-x86_64-apple-darwin
-          path: macos/x86_64
-      - name: Combine Apple Silicon and Intel executables
-        run: lipo -create macos/arm64/earthcraft macos/x86_64/earthcraft -output earthcraft-universal
-      - name: Create universal macOS DMG
-        run: |
-          python -m pip install dmgbuild==1.6.7
-          python scripts/package_release.py package --version ${{ needs.version.outputs.version }} --target universal-apple-darwin --binary earthcraft-universal --output dist
-      - uses: actions/upload-artifact@v7
-        with:
-          name: earthcraft-${{ needs.version.outputs.version }}-universal-apple-darwin
+          name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
           retention-days: 7
 
   publish:
     name: Publish GitHub release
-    needs: [version, build, macos-universal]
+    needs: [version, build]
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-22.04
     permissions:
