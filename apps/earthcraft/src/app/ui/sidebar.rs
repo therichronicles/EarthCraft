@@ -136,27 +136,50 @@ impl App {
                             );
                             ui.checkbox(&mut self.show_vessels, lg.text("layers-vessels-toggle"));
                             if self.show_vessels {
-                                ui.small(self.live_vessels.status(lg == earthcraft_core::language::Lang::PtBr));
+                                ui.small(
+                                    self.live_vessels
+                                        .status(lg == earthcraft_core::language::Lang::PtBr),
+                                );
                                 ui.hyperlink_to("OpenSeaFeed AIS", "https://openseafeed.com/");
-                                ui.hyperlink_to("Fintraffic (contingência)", "https://www.digitraffic.fi/en/marine-traffic/");
+                                ui.hyperlink_to(
+                                    "Fintraffic (contingência)",
+                                    "https://www.digitraffic.fi/en/marine-traffic/",
+                                );
                             }
-                            ui.checkbox(&mut self.show_satellites, lg.text("layers-satellites-toggle"));
+                            ui.checkbox(
+                                &mut self.show_satellites,
+                                lg.text("layers-satellites-toggle"),
+                            );
                             if self.show_satellites {
-                                ui.small(self.live_satellites.status(lg == earthcraft_core::language::Lang::PtBr));
+                                ui.small(
+                                    self.live_satellites
+                                        .status(lg == earthcraft_core::language::Lang::PtBr),
+                                );
                                 ui.hyperlink_to("CelesTrak", "https://celestrak.org/");
                             }
                             ui.checkbox(&mut self.show_roads, lg.text("layers-roads-toggle"));
                             if self.show_roads {
-                                ui.small(self.roads.service.status(self.cam.alt,
-                                    lg == earthcraft_core::language::Lang::PtBr));
-                                ui.hyperlink_to("© OpenStreetMap contributors (ODbL)", "https://www.openstreetmap.org/copyright");
+                                ui.small(self.roads.service.status(
+                                    self.cam.alt,
+                                    lg == earthcraft_core::language::Lang::PtBr,
+                                ));
+                                ui.hyperlink_to(
+                                    "© OpenStreetMap contributors (ODbL)",
+                                    "https://www.openstreetmap.org/copyright",
+                                );
                             }
                             ui.checkbox(&mut self.show_traffic, lg.text("layers-traffic-toggle"));
                             if self.show_traffic {
-                                ui.add(egui::TextEdit::singleline(&mut self.tomtom_key)
-                                    .password(true).hint_text(lg.text("layers-traffic-key")));
-                                ui.small(self.traffic.service.status(&self.tomtom_key,self.cam.alt,
-                                    lg == earthcraft_core::language::Lang::PtBr));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.tomtom_key)
+                                        .password(true)
+                                        .hint_text(lg.text("layers-traffic-key")),
+                                );
+                                ui.small(self.traffic.service.status(
+                                    &self.tomtom_key,
+                                    self.cam.alt,
+                                    lg == earthcraft_core::language::Lang::PtBr,
+                                ));
                                 ui.hyperlink_to("TomTom Traffic", "https://developer.tomtom.com/");
                             }
                             ui.checkbox(&mut self.show_weather, lg.text("layers-weather-toggle"));

@@ -207,92 +207,181 @@ fn draw_hover(painter: &egui::Painter, geometry: &AircraftGeometry, lang: Lang) 
 
 // Additional worldwide AIS and predicted orbital-position layers.
 impl App {
-    fn draw_vessel_overlay(&self, painter: &egui::Painter, basis: &Basis, rect: Rect, altitude: f64) {
+    fn draw_vessel_overlay(
+        &self,
+        painter: &egui::Painter,
+        basis: &Basis,
+        rect: Rect,
+        altitude: f64,
+    ) {
         use earthcraft_core::math::ll_to_v3;
         let ms = self.settings.map_scale;
         let hover = painter.ctx().pointer_hover_pos();
-        let mut nearest: Option<(&earthcraft_data::vessels::Vessel,egui::Pos2)> = None;
+        let mut nearest: Option<(&earthcraft_data::vessels::Vessel, egui::Pos2)> = None;
         let mut distance = (14.0 * ms).powi(2);
         let mut labels = 0;
         for ship in self.live_vessels.snapshot() {
-            let Some(at) = basis.project(ll_to_v3(ship.lat,ship.lon), rect) else {continue;};
-            if !rect.contains(at) {continue;}
-            let (lat_ahead, lon_ahead) = earthcraft_core::math::destination(
-                ship.lat, ship.lon, ship.course, 2.0,
-            );
-            let forward = basis.project(ll_to_v3(lat_ahead, lon_ahead), rect)
+            let Some(at) = basis.project(ll_to_v3(ship.lat, ship.lon), rect) else {
+                continue;
+            };
+            if !rect.contains(at) {
+                continue;
+            }
+            let (lat_ahead, lon_ahead) =
+                earthcraft_core::math::destination(ship.lat, ship.lon, ship.course, 2.0);
+            let forward = basis
+                .project(ll_to_v3(lat_ahead, lon_ahead), rect)
                 .map(|p| p - at)
                 .filter(|v| v.length_sq() > 0.0001)
                 .map(|v| v.normalized() * 8.0 * ms)
                 .unwrap_or(Vec2::new(0.0, -8.0 * ms));
             let right = Vec2::new(-forward.y, forward.x) * 0.55;
             painter.add(egui::Shape::convex_polygon(
-                vec![at+forward,at+right-forward*0.8,at-forward*0.65,at-right-forward*0.8],
-                Color32::from_rgb(52,224,229),Stroke::new(1.0*ms,Color32::from_rgb(5,60,65))));
+                vec![
+                    at + forward,
+                    at + right - forward * 0.8,
+                    at - forward * 0.65,
+                    at - right - forward * 0.8,
+                ],
+                Color32::from_rgb(52, 224, 229),
+                Stroke::new(1.0 * ms, Color32::from_rgb(5, 60, 65)),
+            ));
             if let Some(h) = hover {
-                let d = (h-at).length_sq();
-                if d < distance {distance=d;nearest=Some((ship,at));}
+                let d = (h - at).length_sq();
+                if d < distance {
+                    distance = d;
+                    nearest = Some((ship, at));
+                }
             }
-            if altitude<75.0 && labels<75 {
-                let text = if ship.name.is_empty() {&ship.mmsi} else {&ship.name};
-                painter.text(at+Vec2::new(8.0*ms,0.0),Align2::LEFT_CENTER,text,
-                    FontId::proportional(10.0*ms),Color32::from_rgb(120,245,245));
-                labels+=1;
+            if altitude < 75.0 && labels < 75 {
+                let text = if ship.name.is_empty() {
+                    &ship.mmsi
+                } else {
+                    &ship.name
+                };
+                painter.text(
+                    at + Vec2::new(8.0 * ms, 0.0),
+                    Align2::LEFT_CENTER,
+                    text,
+                    FontId::proportional(10.0 * ms),
+                    Color32::from_rgb(120, 245, 245),
+                );
+                labels += 1;
             }
         }
-        if let Some((ship,at)) = nearest {
-            let name = if ship.name.is_empty() {"AIS vessel"} else {&ship.name};
-            let age_minutes=((now_unix()-ship.observed_unix).max(0.0)/60.0).round();
-            let observed=if self.lang==earthcraft_core::language::Lang::PtBr {
+        if let Some((ship, at)) = nearest {
+            let name = if ship.name.is_empty() {
+                "AIS vessel"
+            } else {
+                &ship.name
+            };
+            let age_minutes = ((now_unix() - ship.observed_unix).max(0.0) / 60.0).round();
+            let observed = if self.lang == earthcraft_core::language::Lang::PtBr {
                 format!("Último sinal AIS há {age_minutes:.0} min • cobertura depende da fonte")
-            } else {format!("Last AIS report {age_minutes:.0} min ago • coverage varies")};
-            let text=format!("{} • MMSI {}\n{:.3}°, {:.3}° • {:.0}° • {} kt\n{}",
-                name,ship.mmsi,ship.lat,ship.lon,ship.course,
-                ship.speed_knots.map_or("?".into(),|s|format!("{s:.1}")),observed);
-            hover_label(painter,rect,at,&text,ms);
+            } else {
+                format!("Last AIS report {age_minutes:.0} min ago • coverage varies")
+            };
+            let text = format!(
+                "{} • MMSI {}\n{:.3}°, {:.3}° • {:.0}° • {} kt\n{}",
+                name,
+                ship.mmsi,
+                ship.lat,
+                ship.lon,
+                ship.course,
+                ship.speed_knots.map_or("?".into(), |s| format!("{s:.1}")),
+                observed
+            );
+            hover_label(painter, rect, at, &text, ms);
         }
     }
-    fn draw_satellite_overlay(&self, painter:&egui::Painter,basis:&Basis,rect:Rect,altitude:f64) {
-        use earthcraft_core::math::{ll_to_v3,now_unix};
-        let ms=self.settings.map_scale;
-        let now=now_unix();
-        let hover=painter.ctx().pointer_hover_pos();
-        let mut nearest:Option<(&earthcraft_data::satellites::Satellite,egui::Pos2)>=None;
-        let mut distance=(13.0*ms).powi(2);
-        let mut labels=0;
+    fn draw_satellite_overlay(
+        &self,
+        painter: &egui::Painter,
+        basis: &Basis,
+        rect: Rect,
+        altitude: f64,
+    ) {
+        use earthcraft_core::math::{ll_to_v3, now_unix};
+        let ms = self.settings.map_scale;
+        let now = now_unix();
+        let hover = painter.ctx().pointer_hover_pos();
+        let mut nearest: Option<(&earthcraft_data::satellites::Satellite, egui::Pos2)> = None;
+        let mut distance = (13.0 * ms).powi(2);
+        let mut labels = 0;
         for sat in self.live_satellites.snapshot() {
-            let Some((lat,lon))=sat.ground_position(now) else {continue;};
-            let Some(at)=basis.project(ll_to_v3(lat,lon),rect) else {continue;};
-            if !rect.contains(at) {continue;}
-            let s=5.0*ms;
-            painter.add(egui::Shape::convex_polygon(
-                vec![at+Vec2::new(0.0,-s),at+Vec2::new(s,0.0),
-                    at+Vec2::new(0.0,s),at+Vec2::new(-s,0.0)],
-                Color32::from_rgb(207,159,255),Stroke::new(ms,Color32::from_rgb(62,22,91))));
-            if let Some(h)=hover {
-                let d=(h-at).length_sq();
-                if d<distance {distance=d;nearest=Some((sat,at));}
+            let Some((lat, lon)) = sat.ground_position(now) else {
+                continue;
+            };
+            let Some(at) = basis.project(ll_to_v3(lat, lon), rect) else {
+                continue;
+            };
+            if !rect.contains(at) {
+                continue;
             }
-            if altitude<900.0 && labels<60 {
-                painter.text(at+Vec2::new(8.0*ms,0.0),Align2::LEFT_CENTER,&sat.name,
-                    FontId::proportional(10.0*ms),Color32::from_rgb(219,178,252));
-                labels+=1;
+            let s = 5.0 * ms;
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    at + Vec2::new(0.0, -s),
+                    at + Vec2::new(s, 0.0),
+                    at + Vec2::new(0.0, s),
+                    at + Vec2::new(-s, 0.0),
+                ],
+                Color32::from_rgb(207, 159, 255),
+                Stroke::new(ms, Color32::from_rgb(62, 22, 91)),
+            ));
+            if let Some(h) = hover {
+                let d = (h - at).length_sq();
+                if d < distance {
+                    distance = d;
+                    nearest = Some((sat, at));
+                }
+            }
+            if altitude < 900.0 && labels < 60 {
+                painter.text(
+                    at + Vec2::new(8.0 * ms, 0.0),
+                    Align2::LEFT_CENTER,
+                    &sat.name,
+                    FontId::proportional(10.0 * ms),
+                    Color32::from_rgb(219, 178, 252),
+                );
+                labels += 1;
             }
         }
-        if let Some((sat,at))=nearest {
-            let pt=self.lang==earthcraft_core::language::Lang::PtBr;
-            let text=if pt {format!("{} (NORAD {})\nPosição orbital estimada • CelesTrak",sat.name,sat.norad)}
-            else {format!("{} (NORAD {})\nEstimated orbital position • CelesTrak",sat.name,sat.norad)};
-            hover_label(painter,rect,at,&text,ms);
+        if let Some((sat, at)) = nearest {
+            let pt = self.lang == earthcraft_core::language::Lang::PtBr;
+            let text = if pt {
+                format!(
+                    "{} (NORAD {})\nPosição orbital estimada • CelesTrak",
+                    sat.name, sat.norad
+                )
+            } else {
+                format!(
+                    "{} (NORAD {})\nEstimated orbital position • CelesTrak",
+                    sat.name, sat.norad
+                )
+            };
+            hover_label(painter, rect, at, &text, ms);
         }
     }
 }
-fn hover_label(painter:&egui::Painter,rect:Rect,screen:egui::Pos2,text:&str,ms:f32) {
-    let galley=painter.layout_no_wrap(text.to_string(),FontId::proportional(12.0*ms),Color32::WHITE);
-    let pos=egui::pos2((screen.x+15.0).min(rect.right()-galley.size().x-10.0)
-        .max(rect.left()+5.0),(screen.y+12.0).min(rect.bottom()-galley.size().y-10.0)
-        .max(rect.top()+5.0));
-    painter.rect_filled(Rect::from_min_size(pos,galley.size()).expand(5.0),5.0,
-        Color32::from_rgba_unmultiplied(12,22,36,236));
-    painter.galley(pos,galley,Color32::WHITE);
+fn hover_label(painter: &egui::Painter, rect: Rect, screen: egui::Pos2, text: &str, ms: f32) {
+    let galley = painter.layout_no_wrap(
+        text.to_string(),
+        FontId::proportional(12.0 * ms),
+        Color32::WHITE,
+    );
+    let pos = egui::pos2(
+        (screen.x + 15.0)
+            .min(rect.right() - galley.size().x - 10.0)
+            .max(rect.left() + 5.0),
+        (screen.y + 12.0)
+            .min(rect.bottom() - galley.size().y - 10.0)
+            .max(rect.top() + 5.0),
+    );
+    painter.rect_filled(
+        Rect::from_min_size(pos, galley.size()).expand(5.0),
+        5.0,
+        Color32::from_rgba_unmultiplied(12, 22, 36, 236),
+    );
+    painter.galley(pos, galley, Color32::WHITE);
 }

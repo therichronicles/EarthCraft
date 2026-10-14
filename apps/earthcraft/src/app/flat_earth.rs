@@ -37,13 +37,14 @@ impl Default for FlatEarth {
 
 // Parametric perspective of an azimuthal disk. 'height' makes the ice rim
 // visibly thick; changing yaw/tilt rotates the surface and side walls.
-fn disk_point(center: Pos2, radius: f32, yaw: f32, tilt: f32,
-              x: f32, y: f32, height: f32) -> Pos2 {
+fn disk_point(center: Pos2, radius: f32, yaw: f32, tilt: f32, x: f32, y: f32, height: f32) -> Pos2 {
     let (sn, cs) = yaw.sin_cos();
     let rx = x * cs - y * sn;
     let ry = x * sn + y * cs;
-    Pos2::new(center.x + radius * rx,
-              center.y + radius * (ry * tilt.sin() - height * tilt.cos()))
+    Pos2::new(
+        center.x + radius * rx,
+        center.y + radius * (ry * tilt.sin() - height * tilt.cos()),
+    )
 }
 fn hash01(i: u32) -> f32 {
     let mut a = i.wrapping_mul(747_796_405).wrapping_add(2_891_336_453);
@@ -63,7 +64,9 @@ impl App {
         });
         if toggle {
             self.flat_earth.open = !self.flat_earth.open;
-            if self.flat_earth.open { self.status = self.lang.text("flat-earth-unlocked").into(); }
+            if self.flat_earth.open {
+                self.status = self.lang.text("flat-earth-unlocked").into();
+            }
             ctx.request_repaint();
         } else if escape && self.flat_earth.open {
             self.flat_earth.open = false;
@@ -91,15 +94,16 @@ impl App {
         painter.rect_filled(rect, 0.0, Color32::from_rgb(2, 4, 18));
         self.cursor = None;
 
-        if self.flat_earth.texture.is_none() {
-            if let Ok(img) = image::load_from_memory(ART) {
-                let pixels = img.to_rgba8();
-                let size = [pixels.width() as usize, pixels.height() as usize];
-                self.flat_earth.texture = Some(ctx.load_texture(
-                    "earthcraft-secret-3d-disk", ColorImage::from_rgba_unmultiplied(size, pixels.as_raw()),
-                    egui::TextureOptions::LINEAR,
-                ));
-            }
+        if self.flat_earth.texture.is_none()
+            && let Ok(img) = image::load_from_memory(ART)
+        {
+            let pixels = img.to_rgba8();
+            let size = [pixels.width() as usize, pixels.height() as usize];
+            self.flat_earth.texture = Some(ctx.load_texture(
+                "earthcraft-secret-3d-disk",
+                ColorImage::from_rgba_unmultiplied(size, pixels.as_raw()),
+                egui::TextureOptions::LINEAR,
+            ));
         }
         if response.dragged() {
             let delta = ctx.input(|input| input.pointer.delta());
@@ -113,8 +117,8 @@ impl App {
         if response.hovered() {
             let scroll = ctx.input(|i| i.smooth_scroll_delta.y);
             if scroll.abs() > 0.1 {
-                self.flat_earth.zoom = (self.flat_earth.zoom * (scroll * 0.0015).exp())
-                    .clamp(MIN_ZOOM, MAX_ZOOM);
+                self.flat_earth.zoom =
+                    (self.flat_earth.zoom * (scroll * 0.0015).exp()).clamp(MIN_ZOOM, MAX_ZOOM);
             }
         }
         if response.double_clicked() {
@@ -131,8 +135,11 @@ impl App {
             let depth = hash01(i * 7 + 3);
             let alpha = 90 + (depth * 150.0) as u8;
             let size = 0.35 + depth * 1.05;
-            painter.circle_filled(Pos2::new(x, y), size,
-                Color32::from_rgba_unmultiplied(205, 223, 255, alpha));
+            painter.circle_filled(
+                Pos2::new(x, y),
+                size,
+                Color32::from_rgba_unmultiplied(205, 223, 255, alpha),
+            );
         }
         let center = rect.center() + self.flat_earth.offset + Vec2::new(0.0, rect.height() * 0.05);
         let radius = (rect.width() * 0.31).min(rect.height() * 0.42) * self.flat_earth.zoom;
@@ -144,10 +151,17 @@ impl App {
         for j in 0..SECTORS {
             let a = (j as f32 + 0.5) * std::f32::consts::TAU / SECTORS as f32;
             let b = (j as f32 + 1.5) * std::f32::consts::TAU / SECTORS as f32;
-            let p = [point(a.cos(), a.sin(), 0.0), point(b.cos(), b.sin(), 0.0),
-                point(b.cos(), b.sin(), -0.10), point(a.cos(), a.sin(), -0.10)];
-            painter.add(egui::Shape::convex_polygon(p.to_vec(),
-                Color32::from_rgb(117, 181, 206), egui::Stroke::NONE));
+            let p = [
+                point(a.cos(), a.sin(), 0.0),
+                point(b.cos(), b.sin(), 0.0),
+                point(b.cos(), b.sin(), -0.10),
+                point(a.cos(), a.sin(), -0.10),
+            ];
+            painter.add(egui::Shape::convex_polygon(
+                p.to_vec(),
+                Color32::from_rgb(117, 181, 206),
+                egui::Stroke::NONE,
+            ));
         }
         if let Some(tex) = &self.flat_earth.texture {
             // Project a genuinely triangulated textured disk (not a distorted rectangle).
@@ -162,13 +176,26 @@ impl App {
                     let t0 = u0 * std::f32::consts::TAU;
                     let t1 = u1 * std::f32::consts::TAU;
                     let start = mesh.vertices.len() as u32;
-                    for (r, u, a) in [(inner,u0,t0), (inner,u1,t1), (outer,u1,t1), (outer,u0,t0)] {
+                    for (r, u, a) in [
+                        (inner, u0, t0),
+                        (inner, u1, t1),
+                        (outer, u1, t1),
+                        (outer, u0, t0),
+                    ] {
                         mesh.vertices.push(egui::epaint::Vertex {
                             pos: point(r * a.cos(), r * a.sin(), 0.0),
-                            uv: Pos2::new(u, r), color: Color32::WHITE,
+                            uv: Pos2::new(u, r),
+                            color: Color32::WHITE,
                         });
                     }
-                    mesh.indices.extend_from_slice(&[start, start+1, start+2, start, start+2, start+3]);
+                    mesh.indices.extend_from_slice(&[
+                        start,
+                        start + 1,
+                        start + 2,
+                        start,
+                        start + 2,
+                        start + 3,
+                    ]);
                 }
             }
             painter.add(egui::Shape::mesh(mesh));
@@ -177,32 +204,72 @@ impl App {
                 let a = i as f32 * std::f32::consts::TAU / SECTORS as f32;
                 ice.push(point(a.cos(), a.sin(), 0.001));
             }
-            painter.add(egui::Shape::line(ice, egui::Stroke::new(3.0 * self.flat_earth.zoom,
-                Color32::from_rgb(228, 247, 255))));
+            painter.add(egui::Shape::line(
+                ice,
+                egui::Stroke::new(3.0 * self.flat_earth.zoom, Color32::from_rgb(228, 247, 255)),
+            ));
         } else {
-            painter.text(rect.center(), Align2::CENTER_CENTER, self.lang.text("flat-earth-image-error"),
-                FontId::proportional(18.0), Color32::WHITE);
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                self.lang.text("flat-earth-image-error"),
+                FontId::proportional(18.0),
+                Color32::WHITE,
+            );
         }
         let title = self.lang.text("flat-earth-title");
         let description = self.lang.text("flat-earth-disclaimer");
         let hint = self.lang.text("flat-earth-hint");
         let pt = self.lang == Lang::PtBr;
         let top_left = rect.left_top() + Vec2::new(18.0, 16.0);
-        let label_bounds = Rect::from_min_size(top_left - Vec2::new(10.0, 7.0), Vec2::new(350.0, 76.0));
-        painter.rect_filled(label_bounds, 9.0, Color32::from_rgba_unmultiplied(0, 0, 0, 208));
-        painter.text(top_left, Align2::LEFT_TOP, title, FontId::proportional(22.0), Color32::from_rgb(255, 218, 145));
-        painter.text(top_left + Vec2::new(0.0, 30.0), Align2::LEFT_TOP, description,
-            FontId::proportional(11.0), Color32::from_rgb(229, 231, 236));
-        let footer = Rect::from_min_size(Pos2::new(rect.left() + 14.0, rect.bottom() - 33.0),
-            Vec2::new((rect.width() - 28.0).max(0.0), 25.0));
+        let label_bounds =
+            Rect::from_min_size(top_left - Vec2::new(10.0, 7.0), Vec2::new(350.0, 76.0));
+        painter.rect_filled(
+            label_bounds,
+            9.0,
+            Color32::from_rgba_unmultiplied(0, 0, 0, 208),
+        );
+        painter.text(
+            top_left,
+            Align2::LEFT_TOP,
+            title,
+            FontId::proportional(22.0),
+            Color32::from_rgb(255, 218, 145),
+        );
+        painter.text(
+            top_left + Vec2::new(0.0, 30.0),
+            Align2::LEFT_TOP,
+            description,
+            FontId::proportional(11.0),
+            Color32::from_rgb(229, 231, 236),
+        );
+        let footer = Rect::from_min_size(
+            Pos2::new(rect.left() + 14.0, rect.bottom() - 33.0),
+            Vec2::new((rect.width() - 28.0).max(0.0), 25.0),
+        );
         painter.rect_filled(footer, 6.0, Color32::from_rgba_unmultiplied(0, 0, 0, 205));
-        painter.text(footer.center(), Align2::CENTER_CENTER, hint, FontId::proportional(12.0), Color32::LIGHT_GRAY);
+        painter.text(
+            footer.center(),
+            Align2::CENTER_CENTER,
+            hint,
+            FontId::proportional(12.0),
+            Color32::LIGHT_GRAY,
+        );
         let exit_width = if pt { 167.0 } else { 177.0 };
         let close_rect = Rect::from_min_size(
-            Pos2::new((rect.right() - exit_width - 16.0).max(rect.left()), rect.top() + 18.0),
+            Pos2::new(
+                (rect.right() - exit_width - 16.0).max(rect.left()),
+                rect.top() + 18.0,
+            ),
             Vec2::new(exit_width, 31.0),
         );
-        if ui.put(close_rect, egui::Button::new(self.lang.text("flat-earth-return"))).clicked() {
+        if ui
+            .put(
+                close_rect,
+                egui::Button::new(self.lang.text("flat-earth-return")),
+            )
+            .clicked()
+        {
             self.flat_earth.open = false;
             ctx.request_repaint();
         }
@@ -227,7 +294,9 @@ mod tests {
     #[test]
     fn perspective_has_depth() {
         let c = Pos2::new(100.0, 100.0);
-        assert_ne!(disk_point(c, 100.0, 0.0, 0.6, 0.0, 1.0, 0.0),
-                   disk_point(c, 100.0, 0.0, 0.6, 0.0, 1.0, -0.1));
+        assert_ne!(
+            disk_point(c, 100.0, 0.0, 0.6, 0.0, 1.0, 0.0),
+            disk_point(c, 100.0, 0.0, 0.6, 0.0, 1.0, -0.1)
+        );
     }
 }

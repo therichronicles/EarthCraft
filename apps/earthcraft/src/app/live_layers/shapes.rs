@@ -7,7 +7,10 @@ const LABEL_FONT_POINTS: f32 = 11.0;
 const LABEL_OFFSET_POINTS: Vec2 = Vec2::new(9.0, -6.0);
 const SHADOW_OFFSET_POINTS: Vec2 = Vec2::new(1.0, 1.0);
 // The plane geometry is taken from the bundled SVG, not the former yellow diamond.
-const AIRPLANE_SVG: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/airplane.svg"));
+const AIRPLANE_SVG: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/airplane.svg"
+));
 const SVG_CENTER_POINTS: f32 = 12.0;
 const AIRPLANE_SCALE_POINTS: f32 = 0.78;
 const AIRPLANE_OUTLINE_SCALE: f32 = 1.11;
@@ -37,16 +40,17 @@ fn airplane_symbol() -> &'static SvgAirplane {
                 let polygon: Vec<Vec2> = points
                     .split_ascii_whitespace()
                     .map(|pair| {
-                        let (x, y) = pair
-                            .split_once(',')
-                            .expect("bundled SVG point must be x,y");
+                        let (x, y) = pair.split_once(',').expect("bundled SVG point must be x,y");
                         Vec2::new(
                             x.parse().expect("SVG x must be a number"),
                             y.parse().expect("SVG y must be a number"),
                         )
                     })
                     .collect();
-                assert!(polygon.len() >= 3, "airplane SVG polygons need three points");
+                assert!(
+                    polygon.len() >= 3,
+                    "airplane SVG polygons need three points"
+                );
                 polygon
             })
             .collect();
@@ -177,10 +181,12 @@ mod tests {
         let symbol = airplane_symbol();
         assert_eq!(symbol.polygons.len(), 5);
         assert!(symbol.polygons.iter().all(|polygon| polygon.len() >= 4));
-        assert!(symbol
-            .polygons
-            .iter()
-            .flatten()
-            .all(|point| point.x.is_finite() && point.y.is_finite()));
+        assert!(
+            symbol
+                .polygons
+                .iter()
+                .flatten()
+                .all(|point| point.x.is_finite() && point.y.is_finite())
+        );
     }
 }

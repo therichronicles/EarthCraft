@@ -287,10 +287,14 @@ impl App {
                 self.show_weather,
             );
             if self.show_roads {
-                self.roads.draw(&painter, &display_basis, rect,
-                    display_cam.lat, display_cam.lon, display_cam.alt,
+                self.roads.draw(
+                    &painter,
+                    &display_basis,
+                    rect,
+                    &display_cam,
                     self.lang == earthcraft_core::language::Lang::PtBr,
-                    self.settings.map_scale);
+                    self.settings.map_scale,
+                );
             }
             if self.show_traffic {
                 self.traffic.draw(&painter, &display_basis, rect);
