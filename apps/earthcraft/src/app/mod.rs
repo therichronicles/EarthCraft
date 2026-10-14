@@ -135,7 +135,7 @@ impl App {
         self.settings.distance_units.resolve(self.system_units)
     }
 
-    pub(crate) fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub(crate) fn new(cc: &eframe::CreationContext<'_>, settings: Settings) -> Self {
         let mut vis = egui::Visuals::dark();
         vis.handle_shape = egui::style::HandleShape::Circle;
         vis.window_corner_radius = 6.0.into();
@@ -143,7 +143,6 @@ impl App {
         let runtime =
             earthcraft_data::runtime::ServiceRuntime::new().expect("start network runtime");
         let lang = load_lang();
-        let settings = Settings::load();
         let system_locale = sys_locale::get_locale().unwrap_or_default();
         let boundary_log: StatusLog = Arc::new(Mutex::new(Vec::new()));
         let (boundaries_rx, boundary_loader) =

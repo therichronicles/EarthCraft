@@ -175,6 +175,7 @@ impl App {
                             .fill(RESET_BUTTON_FILL);
                             if ui.add(reset).clicked() {
                                 self.settings = Settings::default();
+                                self.ui_scale_edit = self.settings.ui_scale;
                             }
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),

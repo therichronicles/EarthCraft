@@ -21,6 +21,7 @@ const APP_ICON_PNG: &[u8] = std::cfg_select! {
 fn main() -> Result<(), eframe::Error> {
     #[cfg(feature = "profiling")]
     earthcraft_data::profiling::init();
+    let settings = earthcraft_data::settings::Settings::load();
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size(INITIAL_WINDOW_SIZE_POINTS)
         .with_title("EarthCraft")
@@ -35,14 +36,12 @@ fn main() -> Result<(), eframe::Error> {
     }
     let options = eframe::NativeOptions {
         viewport,
-        wgpu_options: presentation::configuration(
-            earthcraft_data::settings::Settings::load().uncap_fps,
-        ),
+        wgpu_options: presentation::configuration(settings.uncap_fps),
         ..Default::default()
     };
     eframe::run_native(
         "EarthCraft",
         options,
-        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(App::new(cc, settings)))),
     )
 }
