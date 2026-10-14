@@ -271,7 +271,7 @@ impl eframe::App for App {
         earthcraft_data::profiling::flush();
     }
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.poll_files();
+        self.poll_files(ctx);
         self.ensure_wayback(ctx);
         self.poll_wayback();
         self.poll_suggestions(ctx);

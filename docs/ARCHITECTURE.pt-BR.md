@@ -53,6 +53,12 @@ quick-xml. Diálogos e aplicação dos resultados pertencem à aplicação; KML,
 persistência de preferências ficam em workers. Preferências são gravadas de forma
 coalescida e descarregadas ao encerrar.
 
+O Explorer também usa o serviço de arquivos para decodificar imagens, inclusive
+a Lua incorporada, e ler/gravar documentos de planetas. O upload de texturas
+permanece no egui. As imagens originais ficam compartilhadas em memória para
+permitir salvar novamente um planeta importado sem depender de caminhos antigos
+ou recodificar JPEG/PNG. A gravação captura o nome e as fontes ao ser solicitada.
+
 ## Caches e contratos
 
 - Moka mantém tiles decodificados com LRU e meta aproximada de 256 MiB; referências

@@ -89,3 +89,134 @@ fn jobs_preserve_order_snapshot_inputs_and_wake_after_success_and_failure() {
     let image = image::open(fixture.0.join("shot.png")).unwrap().to_rgba8();
     assert_eq!(image.as_raw(), &[10, 20, 30, 255]);
 }
+
+fn fixture() -> Fixture {
+    let path = std::env::temp_dir().join(format!(
+        "earthcraft-explorer-jobs-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed),
+    ));
+    std::fs::create_dir_all(&path).unwrap();
+    Fixture(path)
+}
+
+#[test]
+fn planet_jobs_preserve_original_encoded_assets_after_source_files_are_deleted() {
+    let fixture = fixture();
+    let texture = fixture.0.join("texture.jpg");
+    let sky = fixture.0.join("sky.png");
+    image::RgbImage::from_pixel(3, 2, image::Rgb([80, 120, 160]))
+        .save(&texture)
+        .unwrap();
+    image::RgbaImage::from_pixel(2, 1, image::Rgba([1, 2, 3, 128]))
+        .save(&sky)
+        .unwrap();
+    let texture_bytes = std::fs::read(&texture).unwrap();
+    let sky_bytes = std::fs::read(&sky).unwrap();
+    let original = fixture.0.join("original.earthplanet");
+    crate::planet::save_planet(
+        &original,
+        "Original",
+        texture.to_str().unwrap(),
+        sky.to_str().unwrap(),
+    )
+    .unwrap();
+    let runtime = crate::runtime::ServiceRuntime::new().unwrap();
+    let (wake_tx, wakes) = mpsc::channel();
+    let (jobs, results) = FileJobs::new(runtime.handle(), move || {
+        let _ = wake_tx.send(());
+    });
+    jobs.open_planet(original).unwrap();
+    let FileOutcome::PlanetLoaded { planet } = results
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap()
+        .result
+        .unwrap()
+    else {
+        panic!("loaded planet");
+    };
+    std::fs::remove_file(texture).unwrap();
+    std::fs::remove_file(sky).unwrap();
+    let saved = fixture.0.join("saved.earthplanet");
+    jobs.save_planet(PlanetSave {
+        path: saved.clone(),
+        name: "Renamed".into(),
+        texture: ImageSource::Encoded(planet.assets.texture),
+        sky: Some(ImageSource::Encoded(planet.assets.sky)),
+    })
+    .unwrap();
+    assert!(
+        matches!(results.recv_timeout(Duration::from_secs(10)).unwrap().result,
+        Ok(FileOutcome::PlanetSaved { path }) if path == saved)
+    );
+    let loaded = crate::planet::load_planet(&saved).unwrap();
+    assert_eq!(loaded.name, "Renamed");
+    assert_eq!(*loaded.assets.texture, texture_bytes);
+    assert_eq!(*loaded.assets.sky, sky_bytes);
+    assert_eq!(loaded.planet.dimensions(), (3, 2));
+    assert_eq!(loaded.sky.unwrap().get_pixel(0, 0).0, [1, 2, 3, 128]);
+    for _ in 0..2 {
+        wakes.recv_timeout(Duration::from_secs(10)).unwrap();
+    }
+}
+
+struct ReleaseWorker(Option<mpsc::Sender<()>>);
+impl Drop for ReleaseWorker {
+    fn drop(&mut self) {
+        if let Some(sender) = self.0.take() {
+            let _ = sender.send(());
+        }
+    }
+}
+
+#[test]
+fn image_jobs_queue_without_waiting_for_the_file_worker_and_wake_on_failure() {
+    let fixture = fixture();
+    let path = fixture.0.join("image.png");
+    image::RgbaImage::from_pixel(2, 1, image::Rgba([9, 8, 7, 255]))
+        .save(&path)
+        .unwrap();
+    let runtime = crate::runtime::ServiceRuntime::new().unwrap();
+    let (release_tx, release_rx) = mpsc::channel();
+    let release = ReleaseWorker(Some(release_tx));
+    let (started_tx, started) = mpsc::channel();
+    runtime.spawn(async move {
+        crate::cpu::run(crate::cpu::Service::Files, move || {
+            started_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+            Ok(())
+        })
+        .await
+        .unwrap();
+    });
+    started.recv_timeout(Duration::from_secs(10)).unwrap();
+    let (wake_tx, wakes) = mpsc::channel();
+    let (jobs, results) = FileJobs::new(runtime.handle(), move || {
+        let _ = wake_tx.send(());
+    });
+    jobs.load_image(ImageTarget::Planet, ImageSource::Path(path))
+        .unwrap();
+    jobs.load_image(
+        ImageTarget::Sky,
+        ImageSource::Encoded(Arc::new(vec![1, 2, 3])),
+    )
+    .unwrap();
+    assert!(matches!(results.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    drop(release);
+    let FileOutcome::ImageLoaded { target, image } = results
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap()
+        .result
+        .unwrap()
+    else {
+        panic!("decoded image");
+    };
+    assert_eq!(target, ImageTarget::Planet);
+    assert_eq!(image.pixels.get_pixel(0, 0).0, [9, 8, 7, 255]);
+    let failed = results.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert_eq!(failed.kind, FileKind::Image(ImageTarget::Sky));
+    assert!(matches!(failed.result, Err(crate::Error::Image(_))));
+    for _ in 0..2 {
+        wakes.recv_timeout(Duration::from_secs(10)).unwrap();
+    }
+}

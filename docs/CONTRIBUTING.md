@@ -142,6 +142,16 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   language/map text size, and resize. Verify updates without camera movement;
   late boundary patches and ruler/placemark edits must appear immediately.
 - Create placemarks; save/open/drop KML; export a screenshot and use the ruler.
+- In Explorer, display large planet/sky images and load/save `.earthplanet` files;
+  the UI should remain responsive while the file work runs. Check the busy
+  indicator and disabled file controls, including after a failed operation.
+  Load a planet after choosing unrelated image paths, then save it to a new
+  document and reopen it: planet, sky and name must match the loaded document.
+  Repeat with no sky and a legacy sidecar document. Delete the original image
+  files after importing and confirm re-saving still works. Start a load, switch
+  back to Earth or the Moon, and verify completion preserves that selection.
+  Choose the Moon for the first time and confirm its texture arrives without
+  switching back if another body is selected before decoding completes.
 - Open language, distance-unit, ruler-unit and historical-imagery dropdowns with
   a short option selected. The selected/hovered rectangle must fill every row,
   including empty space to the right, even on the first opening.

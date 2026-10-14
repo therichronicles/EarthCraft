@@ -118,6 +118,15 @@ KML I/O and screenshot encoding use an ordered bounded file service. Native dial
 and result application belong to the app. Settings/language writes coalesce on a
 filesystem worker and flush at shutdown; startup reads the small preference files.
 
+Explorer image decoding (including the embedded Moon image) and planet document
+I/O use that same file service. Texture upload remains on egui's thread. Planet
+loads retain shared original encoded images, and saves snapshot their references,
+selected paths and name at submission. Re-saving an imported planet does not
+require its former image paths or re-encode its JPEG/PNG assets. Pending Explorer
+file controls are disabled, and selecting another body prevents a late load from
+changing the active body. The version-1 sidecar and version-2 embedded document
+formats remain supported.
+
 ## Cache ownership
 
 | Storage | Policy |

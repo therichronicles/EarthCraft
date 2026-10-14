@@ -1,5 +1,7 @@
-//! Ordered, bounded KML/PNG jobs; native dialogs and applying results stay in app.
+//! Ordered, bounded file jobs; native dialogs and applying results stay in app.
+mod images;
 use earthcraft_core::{language::Lang, placemark::Placemark};
+pub use images::{ImageSource, ImageTarget, LoadedImage, PlanetSave};
 use std::{
     path::PathBuf,
     sync::{Arc, mpsc},
@@ -17,11 +19,25 @@ pub enum FileOutcome {
     ScreenshotSaved {
         path: PathBuf,
     },
+    ImageLoaded {
+        target: ImageTarget,
+        image: LoadedImage,
+    },
+    PlanetLoaded {
+        planet: crate::planet::LoadedPlanet,
+    },
+    PlanetSaved {
+        path: PathBuf,
+    },
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileKind {
     OpenKml,
     SaveKml,
     Screenshot,
+    Image(ImageTarget),
+    OpenPlanet,
+    SavePlanet,
 }
 pub struct FileCompletion {
     pub kind: FileKind,
@@ -31,6 +47,9 @@ enum Job {
     Open(PathBuf, Lang),
     Save(PathBuf, Vec<Placemark>),
     Screenshot(PathBuf, u32, u32, Arc<Vec<u8>>),
+    Image(ImageTarget, ImageSource),
+    OpenPlanet(PathBuf),
+    SavePlanet(PlanetSave),
 }
 impl Job {
     fn kind(&self) -> FileKind {
@@ -38,6 +57,9 @@ impl Job {
             Self::Open(..) => FileKind::OpenKml,
             Self::Save(..) => FileKind::SaveKml,
             Self::Screenshot(..) => FileKind::Screenshot,
+            Self::Image(target, _) => FileKind::Image(*target),
+            Self::OpenPlanet(..) => FileKind::OpenPlanet,
+            Self::SavePlanet(..) => FileKind::SavePlanet,
         }
     }
     fn run(self) -> Result<FileOutcome, crate::Error> {
@@ -59,6 +81,33 @@ impl Job {
                 }
                 image::save_buffer(&path, &pixels, width, height, image::ColorType::Rgba8)?;
                 Ok(FileOutcome::ScreenshotSaved { path })
+            }
+            Self::Image(target, source) => {
+                let encoded = source.read()?;
+                let pixels = image::load_from_memory(&encoded)?.to_rgba8();
+                Ok(FileOutcome::ImageLoaded {
+                    target,
+                    image: LoadedImage { pixels, encoded },
+                })
+            }
+            Self::OpenPlanet(path) => Ok(FileOutcome::PlanetLoaded {
+                planet: crate::planet::load_planet(&path)?,
+            }),
+            Self::SavePlanet(PlanetSave {
+                path,
+                name,
+                texture,
+                sky,
+            }) => {
+                let texture = texture.read()?;
+                let sky = sky.map(ImageSource::read).transpose()?.unwrap_or_default();
+                let document = crate::planet::encode_planet(
+                    &name,
+                    texture.as_ref().clone(),
+                    sky.as_ref().clone(),
+                )?;
+                std::fs::write(&path, document)?;
+                Ok(FileOutcome::PlanetSaved { path })
             }
         }
     }
@@ -113,6 +162,18 @@ impl FileJobs {
     ) -> Result<(), crate::Error> {
         self.reserve()?
             .send(Job::Screenshot(path, width, height, pixels.clone()));
+        Ok(())
+    }
+    pub fn load_image(&self, target: ImageTarget, source: ImageSource) -> Result<(), crate::Error> {
+        self.reserve()?.send(Job::Image(target, source));
+        Ok(())
+    }
+    pub fn open_planet(&self, path: PathBuf) -> Result<(), crate::Error> {
+        self.reserve()?.send(Job::OpenPlanet(path));
+        Ok(())
+    }
+    pub fn save_planet(&self, snapshot: PlanetSave) -> Result<(), crate::Error> {
+        self.reserve()?.send(Job::SavePlanet(snapshot));
         Ok(())
     }
 }

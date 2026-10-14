@@ -30,9 +30,18 @@ impl App {
         }
     }
 
-    pub(super) fn poll_files(&mut self) {
+    pub(super) fn poll_files(&mut self, ctx: &egui::Context) {
         while let Ok(FileCompletion { kind, result }) = self.file_results.try_recv() {
             match result {
+                Ok(FileOutcome::ImageLoaded { target, image }) => {
+                    self.explorer.image_loaded(target, image, ctx, self.lang);
+                }
+                Ok(FileOutcome::PlanetLoaded { planet }) => {
+                    self.explorer.planet_loaded(planet, ctx, self.lang);
+                }
+                Ok(FileOutcome::PlanetSaved { path }) => {
+                    self.explorer.planet_saved(path, self.lang);
+                }
                 Ok(FileOutcome::KmlSaved { path }) => {
                     self.kml_path = path.to_string_lossy().into_owned();
                     self.status = self.lang.format(
@@ -81,6 +90,10 @@ impl App {
                         FileKind::OpenKml => "kml-open-error",
                         FileKind::SaveKml => "kml-save-error",
                         FileKind::Screenshot => "screenshot-save-error",
+                        FileKind::Image(_) | FileKind::OpenPlanet | FileKind::SavePlanet => {
+                            self.explorer.file_failed(kind, error);
+                            continue;
+                        }
                     };
                     self.status = Lang::En.format(id, &[("error", error.to_string().into())]);
                 }

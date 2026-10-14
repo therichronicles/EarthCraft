@@ -1,12 +1,13 @@
 //! Optional explorer utilities. Does not modify the CPU globe renderer.
+mod files;
 use super::App;
 use earthcraft_core::body::Body;
 use earthcraft_data::{
+    files::{FileJobs, ImageSource, ImageTarget},
     links::photo_search,
-    planet::{load_planet, save_planet},
 };
-use eframe::egui::{self, ColorImage, TextureHandle};
-use std::{fs, path::Path, process::Command};
+use eframe::egui::{self, TextureHandle};
+use std::{process::Command, sync::Arc};
 
 #[derive(Default)]
 pub(super) struct Explorer {
@@ -14,6 +15,11 @@ pub(super) struct Explorer {
     name: String,
     image_path: String,
     sky_path: String,
+    image_bytes: Option<Arc<Vec<u8>>>,
+    sky_bytes: Option<Arc<Vec<u8>>>,
+    pending: bool,
+    activate_on_completion: bool,
+    moon_loading: bool,
     pub viewer: Option<TextureHandle>,
     pub active: Body,
     moon: Option<TextureHandle>,
@@ -23,45 +29,18 @@ pub(super) struct Explorer {
     generated_tour_text: String,
 }
 
-fn texture(ctx: &egui::Context, file: &Path) -> Result<TextureHandle, String> {
-    let data = fs::read(file).map_err(|e| e.to_string())?;
-    let im = image::load_from_memory(&data)
-        .map_err(|e| e.to_string())?
-        .to_rgba8();
-    let size = [im.width() as usize, im.height() as usize];
-    Ok(ctx.load_texture(
-        file.to_string_lossy(),
-        ColorImage::from_rgba_unmultiplied(size, im.as_raw()),
-        Default::default(),
-    ))
-}
-
-fn texture_bytes(ctx: &egui::Context, label: &str, data: &[u8]) -> Result<TextureHandle, String> {
-    let im = image::load_from_memory(data)
-        .map_err(|e| e.to_string())?
-        .to_rgba8();
-    let size = [im.width() as usize, im.height() as usize];
-    Ok(ctx.load_texture(
-        label,
-        ColorImage::from_rgba_unmultiplied(size, im.as_raw()),
-        Default::default(),
-    ))
-}
 impl Explorer {
-    pub fn choose(&mut self, body: Body, ctx: &egui::Context) {
+    pub fn choose(&mut self, body: Body, jobs: &FileJobs) {
         self.active = body;
-        let item = match body {
-            Body::Moon => Some((
-                &mut self.moon,
-                "Moon",
-                include_bytes!("../../assets/lroc_color_2k.jpg").as_slice(),
-            )),
-            _ => None,
-        };
-        if let Some((slot, label, bytes)) = item
-            && slot.is_none()
-        {
-            *slot = texture_bytes(ctx, label, bytes).ok();
+        self.activate_on_completion = false;
+        if body == Body::Moon && self.moon.is_none() && !self.moon_loading {
+            match jobs.load_image(
+                ImageTarget::Moon,
+                ImageSource::Embedded(include_bytes!("../../assets/lroc_color_2k.jpg")),
+            ) {
+                Ok(()) => self.moon_loading = true,
+                Err(error) => self.message = format!("Moon image request failed: {error}"),
+            }
         }
     }
     pub fn active_texture(&self) -> Option<&TextureHandle> {
@@ -165,51 +144,100 @@ impl App {
                 ui.separator();
                 ui.heading(lg.text("explorer-bodies"));
                 ui.horizontal(|ui| {
-                    if ui.button(lg.text("explorer-earth")).clicked() {self.explorer.choose(Body::Earth,ctx)}
-                    if ui.button(lg.text("explorer-moon")).clicked() {self.explorer.choose(Body::Moon,ctx)}
-                    if ui.button(lg.text("explorer-custom-planet")).clicked() {self.explorer.choose(Body::Custom,ctx)}
+                    for (body, label) in [
+                        (Body::Earth, "explorer-earth"),
+                        (Body::Moon, "explorer-moon"),
+                        (Body::Custom, "explorer-custom-planet"),
+                    ] {
+                        if ui.button(lg.text(label)).clicked() {
+                            self.explorer.choose(body, &self.file_jobs);
+                        }
+                    }
                 });
                 ui.small(lg.text("explorer-moon-fixed"));
-                ui.horizontal(|ui|{ui.label(lg.text("explorer-name"));ui.text_edit_singleline(&mut self.explorer.name);});
-                ui.horizontal(|ui|{ui.label(lg.text("explorer-image"));ui.add(egui::TextEdit::singleline(&mut self.explorer.image_path).desired_width(200.0));
-                    if ui.button(lg.text("explorer-browse")).clicked()&& let Some(p)=rfd::FileDialog::new().add_filter("Image", &["png","jpg","jpeg"]).pick_file(){self.explorer.image_path=p.to_string_lossy().into();}
-                });
-                if ui.button(lg.text("explorer-display-planet")).clicked() {
-                    self.explorer.message=match texture(ctx,Path::new(&self.explorer.image_path)) {Ok(t)=>{self.explorer.viewer=Some(t);self.explorer.active=Body::Custom;lg.text("explorer-planet-displayed").into()},Err(e)=>e};
+                if self.explorer.pending || self.explorer.moon_loading {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(lg.text("explorer-file-working"));
+                    });
                 }
-                if let Some(t)=&self.explorer.viewer {ui.image((t.id(),egui::vec2(260.0,150.0)));}
-                ui.horizontal(|ui| {
-                    if ui.button(lg.text("explorer-save-planet")).clicked()
-                        && let Some(path)=rfd::FileDialog::new().add_filter("EarthCraft planet", &["earthplanet"]).set_file_name("my-planet.earthplanet").save_file(){
-                            self.explorer.message=save_planet(&path,&self.explorer.name,&self.explorer.image_path,&self.explorer.sky_path).unwrap_or_else(|e|e.to_string());
+                ui.add_enabled_ui(!self.explorer.pending, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(lg.text("explorer-name"));
+                        ui.text_edit_singleline(&mut self.explorer.name);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(lg.text("explorer-image"));
+                        let hint = if self.explorer.image_bytes.is_some() {
+                            lg.text("explorer-embedded-image")
+                        } else {
+                            ""
+                        };
+                        if ui.add(egui::TextEdit::singleline(&mut self.explorer.image_path)
+                            .hint_text(hint).desired_width(200.0)).changed()
+                        {
+                            self.explorer.image_bytes = None;
                         }
-                    if ui.button(lg.text("explorer-load-planet")).clicked()
-                        && let Some(path)=rfd::FileDialog::new().add_filter("EarthCraft planet", &["earthplanet"]).pick_file(){
-                            self.explorer.message=match load_planet(&path){Ok(loaded)=>{
-                                self.explorer.name=loaded.name;self.explorer.viewer=Some(upload_image(ctx,"loaded-planet",loaded.planet));self.explorer.sky=loaded.sky.map(|image|upload_image(ctx,"loaded-sky",image));self.explorer.active=Body::Custom;
-                                lg.text("explorer-planet-loaded").into()
-                            },Err(e)=>e.to_string()};
+                        if ui.button(lg.text("explorer-browse")).clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Image", &["png", "jpg", "jpeg"]).pick_file()
+                        {
+                            self.explorer.image_path = path.to_string_lossy().into();
+                            self.explorer.image_bytes = None;
                         }
+                    });
+                    if ui.button(lg.text("explorer-display-planet")).clicked() {
+                        self.explorer.request_image(ImageTarget::Planet, &self.file_jobs);
+                    }
+                    if let Some(texture) = &self.explorer.viewer {
+                        ui.image((texture.id(), egui::vec2(260.0, 150.0)));
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.button(lg.text("explorer-save-planet")).clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .add_filter("EarthCraft planet", &["earthplanet"])
+                                .set_file_name("my-planet.earthplanet").save_file()
+                        {
+                            self.explorer.request_save(path, &self.file_jobs);
+                        }
+                        if ui.button(lg.text("explorer-load-planet")).clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .add_filter("EarthCraft planet", &["earthplanet"]).pick_file()
+                        {
+                            self.explorer.request_open(path, &self.file_jobs);
+                        }
+                    });
+                    ui.separator();
+                    ui.heading(lg.text("explorer-sky-galaxy"));
+                    ui.horizontal(|ui| {
+                        let hint = lg.text(if self.explorer.sky_bytes.is_some() {
+                            "explorer-embedded-image"
+                        } else {
+                            "explorer-image-path"
+                        });
+                        if ui.add(egui::TextEdit::singleline(&mut self.explorer.sky_path)
+                            .hint_text(hint).desired_width(210.0)).changed()
+                        {
+                            self.explorer.sky_bytes = None;
+                        }
+                        if ui.button(lg.text("explorer-browse")).clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Image", &["png", "jpg", "jpeg"]).pick_file()
+                        {
+                            self.explorer.sky_path = path.to_string_lossy().into();
+                            self.explorer.sky_bytes = None;
+                        }
+                    });
+                    if ui.button(lg.text("explorer-display-galaxy")).clicked() {
+                        self.explorer.request_image(ImageTarget::Sky, &self.file_jobs);
+                    }
+                    if let Some(texture) = &self.explorer.sky {
+                        ui.image((texture.id(), egui::vec2(260.0, 120.0)));
+                    }
+                    ui.small(lg.text("explorer-sky-preview"));
                 });
-                ui.separator();
-                ui.heading(lg.text("explorer-sky-galaxy"));
-                ui.horizontal(|ui|{ui.add(egui::TextEdit::singleline(&mut self.explorer.sky_path).hint_text(lg.text("explorer-image-path")).desired_width(210.0));
-                    if ui.button(lg.text("explorer-browse")).clicked()&& let Some(p)=rfd::FileDialog::new().add_filter("Image", &["png","jpg","jpeg"]).pick_file(){self.explorer.sky_path=p.to_string_lossy().into();}
-                });
-                if ui.button(lg.text("explorer-display-galaxy")).clicked(){self.explorer.message=match texture(ctx,Path::new(&self.explorer.sky_path)){Ok(t)=>{self.explorer.sky=Some(t);lg.text("explorer-sky-applied").into()},Err(e)=>e};}
-                if let Some(t)=&self.explorer.sky{ui.image((t.id(),egui::vec2(260.0,120.0)));}
-                ui.small(lg.text("explorer-sky-preview"));
                 if !self.explorer.message.is_empty(){ui.separator();ui.label(&self.explorer.message);}
             });
         self.explorer.open = open;
     }
-}
-
-fn upload_image(ctx: &egui::Context, label: &str, image: image::RgbaImage) -> TextureHandle {
-    let size = [image.width() as usize, image.height() as usize];
-    ctx.load_texture(
-        label,
-        ColorImage::from_rgba_unmultiplied(size, image.as_raw()),
-        Default::default(),
-    )
 }

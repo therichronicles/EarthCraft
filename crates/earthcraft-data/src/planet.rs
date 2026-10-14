@@ -1,10 +1,16 @@
 //! Portable .earthplanet document I/O; native dialogs and textures stay in frontends.
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use std::{fs, path::Path, sync::Arc};
+#[derive(Clone)]
+pub struct PlanetAssets {
+    pub texture: Arc<Vec<u8>>,
+    pub sky: Arc<Vec<u8>>,
+}
 pub struct LoadedPlanet {
     pub name: String,
     pub planet: image::RgbaImage,
     pub sky: Option<image::RgbaImage>,
+    pub assets: PlanetAssets,
 }
 #[derive(Serialize, Deserialize)]
 struct PlanetFile {
@@ -24,24 +30,12 @@ pub fn save_planet(
     sky: &str,
 ) -> Result<String, crate::Error> {
     let texture_bytes = fs::read(source).map_err(|e| format!("Planet image: {e}"))?;
-    image::load_from_memory(&texture_bytes)?;
     let sky_bytes = if sky.trim().is_empty() {
         Vec::new()
     } else {
-        let b = fs::read(sky).map_err(|e| format!("Sky: {e}"))?;
-        image::load_from_memory(&b)?;
-        b
+        fs::read(sky).map_err(|e| format!("Sky: {e}"))?
     };
-    fs::write(
-        path,
-        serde_json::to_vec(&PlanetFile {
-            version: 2,
-            name: name.into(),
-            texture: String::new(),
-            texture_bytes,
-            sky_bytes,
-        })?,
-    )?;
+    fs::write(path, encode_planet(name, texture_bytes, sky_bytes)?)?;
     Ok(format!("Planet and sky embedded in {}", path.display()))
 }
 /// Encode a self-contained version-2 document, also usable with browser file bytes.
@@ -97,6 +91,10 @@ pub fn decode_planet(
         name: doc.name,
         planet,
         sky,
+        assets: PlanetAssets {
+            texture: Arc::new(data),
+            sky: Arc::new(doc.sky_bytes),
+        },
     })
 }
 

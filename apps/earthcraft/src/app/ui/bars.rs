@@ -31,7 +31,7 @@ impl App {
                         ),
                     ] {
                         if ui.button(name).clicked() {
-                            self.explorer.choose(body, ui);
+                            self.explorer.choose(body, &self.file_jobs);
                             if body == earthcraft_core::body::Body::Custom {
                                 self.explorer.open = true;
                             }
