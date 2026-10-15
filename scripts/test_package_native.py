@@ -161,6 +161,22 @@ class NativePackagingTests(unittest.TestCase):
         for asset in rpm["assets"][1:]:
             self.assertTrue((release.ROOT / asset["source"]).is_file())
 
+    def test_snapcraft_receives_the_release_version_instead_of_a_template_version(self):
+        template = json.loads((release.ROOT / "packaging/snapcraft.json").read_text())
+        self.assertNotIn("version", template)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "earthcraft.snap"
+
+            def snapcraft(command, **options):
+                config = json.loads((options["cwd"] / "snap/snapcraft.yaml").read_text())
+                self.assertEqual(config["version"], "7.8.9")
+                self.assertEqual(config["architectures"][0]["build-for"], ["arm64"])
+                archive.write_bytes(b"Snap fixture")
+
+            with mock.patch.object(linux, "source_snapshot", return_value=root / "source"), mock.patch.object(linux.subprocess, "run", side_effect=snapcraft):
+                linux.snap("7.8.9", "arm64", archive, root)
+
 
 if __name__ == "__main__":
     unittest.main()

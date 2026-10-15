@@ -1,7 +1,6 @@
 {
   "name": "earthcraft",
   "base": "core22",
-  "version": "0.1.0",
   "summary": "Explore the Earth in a 3D globe",
   "description": "Satellite imagery, live layers, search, KML places and distance measurements.",
   "grade": "stable",

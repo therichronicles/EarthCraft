@@ -288,7 +288,9 @@ packaging. Flatpak vendors the locked Cargo dependencies before invoking
 flatpak-builder offline with `packaging/flatpak.json`. Install its SDK/runtime
 and Rust extension as in the workflow. Snap uses `packaging/snapcraft.json`, a
 JSON representation of snapcraft.yaml, and the official Rust plugin with locked,
-CPU-only builds. Only the Snapcraft invocation uses sudo on the disposable CI host.
+CPU-only builds. The template omits `version`: the helper injects the workspace
+version supplied by the release workflow, so `Cargo.toml` is the single source.
+Only the Snapcraft invocation uses sudo on the disposable CI host.
 Both formats compile their own binaries rather than wrapping the portable archive.
 
 On Windows, install cargo-packager 0.11.8 and run `scripts/package_windows.py`
