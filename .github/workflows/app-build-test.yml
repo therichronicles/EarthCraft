@@ -2,6 +2,7 @@ name: app-build-test
 
 on:
   push:
+    branches: ['**']
     paths:
       - 'apps/**'
       - 'crates/**'
@@ -27,7 +28,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select-checks:
+    name: Select application checks
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      run: ${{ github.event_name != 'pull_request' || steps.changes.outputs.release != 'true' }}
+    steps:
+      - name: Detect release workflow paths
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          # Keep these paths aligned with release.yml's pull_request trigger.
+          filters: |
+            release:
+              - '.github/workflows/release.yml'
+              - 'scripts/package_*.py'
+              - 'scripts/test_package_*.py'
+              - 'packaging/**'
+              - 'assets/icon.ico'
+              - 'assets/icon_256.png'
+              - 'cliff.toml'
+              - 'assets/macos/icon.icns'
+              - 'assets/macos/dmg-background*.png'
+              - 'docs/RELEASING.md'
+
   verify:
+    needs: select-checks
+    if: needs.select-checks.outputs.run == 'true'
     name: ubuntu-latest / Rust stable
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +89,8 @@ jobs:
         run: cargo build --workspace --all-features --locked
 
   minimum-rust:
+    needs: select-checks
+    if: needs.select-checks.outputs.run == 'true'
     name: ubuntu-latest / Rust 1.95
     runs-on: ubuntu-latest
     steps:
