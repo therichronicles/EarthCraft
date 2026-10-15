@@ -90,7 +90,7 @@ exec "$APPDIR/usr/bin/earthcraft" "$@"
     # appimagetool derives this legacy filename from earthcraft.desktop.
     # Rename only the isolated AppDir copy; other formats retain the app ID.
     metadata = directory / "usr/share/metainfo" / f"{APP_ID}.metainfo.xml"
-    metadata.rename(metadata.with_name("earthcraft.appdata.xml"))
+    metadata.replace(metadata.with_name("earthcraft.appdata.xml"))
     # zsyncmake writes its sidecar in the working directory, even when the
     # AppImage destination is absolute. Keep both release files together.
     subprocess.run(["linuxdeploy", "--appdir", str(directory), "--output", "appimage"],
