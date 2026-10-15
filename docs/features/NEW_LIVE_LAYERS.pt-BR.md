@@ -10,7 +10,7 @@ para deslocar; rode o mouse para zoom; duplo clique para restaurar; Esc para sai
 
 ## Aviões
 
-`assets/representations/airplane.svg` fornece os polígonos do símbolo da aeronave,
+`apps/earthcraft/assets/airplane.svg` fornece os polígonos do símbolo da aeronave,
 incorporados como malhas vetoriais no egui. Os ícones são orientados de acordo
 com o rumo observado pelo OpenSky/ADSB.lol. Mantém os provedores e avisos
 anteriores.
