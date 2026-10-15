@@ -202,16 +202,19 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
   Ruler help uses Option-click on macOS and Alt-click elsewhere.
 
 Report which checks actually ran and which platforms/services remain unverified.
-For packaging, use the app manifest/package, e.g. a package-selecting command
-supported by your packaging tool or run it from `apps/earthcraft`. Release
-artifacts still go to the root `target/release`. macOS bundles use
+For packaging, use the release helpers in `scripts/` and the tool configuration
+in `packaging/`. cargo-packager constructs the native bundles/installers, while
+RPM metadata lives in the app manifest. Release binaries still go to the root
+`target/release` (or `target/<target>/release` for explicit targets). macOS bundles use
 `assets/packaging/macos/icon.icns`, generated from the unchanged `assets/packaging/icon.png` artwork with
 transparent Dock padding and standard and Retina sizes (16–1024 pixels).
 The macOS runtime icon is `assets/packaging/macos/icon.png`, with the same padding as the
 bundle icon: eframe applies it to the Dock at startup. Keep both assets aligned;
 Windows/Linux retain `assets/packaging/icon_256.png`.
-The optional `cargo deb` metadata uses `packaging/earthcraft.desktop` for the
-Linux application entry. Debian packages are not produced by the release workflow.
+The release workflow builds DEB/AppImage/MSI and the macOS app with cargo-packager,
+RPM with cargo-generate-rpm, Flatpak with flatpak-builder and Snap with the official
+Snapcraft Rust plugin. macOS keeps dmgbuild for the existing Finder layout. See
+[release tooling](docs/RELEASING.md) for pinned versions and native validation limits.
 
 
 Distance and path smoke checks: select System, kilometers/meters and miles/feet

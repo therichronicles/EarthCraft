@@ -34,25 +34,29 @@ rfd = { workspace = true, features = ["gtk3"] }
 [target.'cfg(not(any(target_os = "linux", target_os = "freebsd")))'.dependencies]
 rfd = { workspace = true, default-features = true }
 
-[package.metadata.bundle]
-name = "EarthCraft"
-identifier = "com.theri.earthcraft"
-icon = ["../../assets/packaging/macos/icon.icns"]
-
-# ── .deb package (cargo deb) ──
-[package.metadata.deb]
+[package.metadata.generate-rpm]
 name = "earthcraft"
-maintainer = "EarthCraft <earthcraft@localhost>"
-section = "science"
-priority = "optional"
-depends = "$auto, libgtk-3-0"
-extended-description = "3D globe in the style of Google Earth: satellite imagery, historical imagery, borders, search, KML and screenshots."
+summary = "3D globe explorer with satellite imagery, live layers and KML places"
+url = "https://github.com/therichronicles/EarthCraft"
 assets = [
-    ["../../target/release/earthcraft", "usr/bin/", "755"],
-    ["../../packaging/earthcraft.desktop", "usr/share/applications/", "644"],
-    ["../../assets/packaging/icon_256.png", "usr/share/icons/hicolor/256x256/apps/earthcraft.png", "644"],
-    ["../../README.md", "usr/share/doc/earthcraft/README", "644"],
+    { source = "target/release/earthcraft", dest = "/usr/bin/earthcraft", mode = "755" },
+    { source = "packaging/earthcraft.desktop", dest = "/usr/share/applications/earthcraft.desktop", mode = "644" },
+    { source = "assets/packaging/icon_256.png", dest = "/usr/share/icons/hicolor/256x256/apps/earthcraft.png", mode = "644" },
+    { source = "packaging/earthcraft.metainfo.xml", dest = "/usr/share/metainfo/com.theri.earthcraft.metainfo.xml", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/licenses/earthcraft/LICENSE", mode = "644", doc = true },
 ]
+
+[package.metadata.generate-rpm.requires]
+glibc = ">= 2.35"
+libgcc = "*"
+gtk3 = "*"
+libX11 = "*"
+libxkbcommon = "*"
+wayland-libs = "*"
+xdg-utils = "*"
+
+[package.metadata.generate-rpm.recommends]
+espeak-ng = "*"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 muda.workspace = true

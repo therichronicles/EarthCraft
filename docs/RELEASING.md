@@ -1,7 +1,7 @@
 # Releases
 
 The [release workflow](../.github/workflows/release.yml) builds locked release
-binaries with Rust 1.95. Portable archives contain the application executable;
+binaries with Rust 1.95 (Flatpak builds use its Rust SDK extension). Portable archives contain the application executable;
 native installers and Linux bundles also contain their desktop integration and
 runtime/package metadata. macOS keeps its Apple Silicon DMG and a ZIP of that
 same signed app bundle for in-app updates.
@@ -53,9 +53,12 @@ before announcing them.
 DEB and RPM packages install the app, desktop entry and icon through the system
 package manager, with GTK and other runtime dependencies declared. MSI packages
 install to Program Files and add a Start menu shortcut; they require administrator
-access and use separate upgrade identities for x64 and ARM64. MSI's numeric
-product version uses the major/minor/patch part of the release version. The x64
+access. cargo-packager manages MSI product and upgrade metadata through its WiX
+backend; MSI uses the numeric major/minor/patch version within Windows Installer
+limits. The x64
 standalone EXE is the same application binary as the portable ZIP.
+Optional narration requires `espeak` on DEB installations; RPM recommends
+`espeak-ng`, and the Snap includes `espeak`.
 
 AppImage files are executable bundles; run `chmod +x earthcraft-*-linux-*.AppImage`
 and launch the file for your architecture. Matching `.zsync` files provide
@@ -142,8 +145,9 @@ system-wide is not required.
 Pull requests changing the release workflow, packaging code/tests, changelog
 configuration, macOS icon or this guide run
 six native architecture builds, two Windows installer jobs and four Linux
-bundle jobs, and upload preview artifacts without publishing a release. Installer
-and bundle jobs reuse the binaries already built by the main matrix. WiX runs
+bundle jobs, and upload preview artifacts without publishing a release. DEB, RPM,
+AppImage and MSI reuse the binaries built by the main matrix. Flatpak and Snap
+build the committed source in their own packaging environments. WiX runs
 on an x64 Windows host even when packaging an ARM64 executable.
 After merge, the Actions page also offers a manual **Release** run with the same
 preview-only behavior. Inspect and test these artifacts before creating a version tag.
@@ -184,10 +188,13 @@ personal access token are needed.
   indefinitely require checking runner availability, billing and Actions policy.
 - Allow the `vmactions/freebsd-vm@v1` action and nested virtualization on the
   Ubuntu host used for FreeBSD. That job installs Rust 1.95.0 inside the VM.
-- Linux package jobs download nFPM 2.47.0, linuxdeploy's maintained `continuous`
-  build and its GTK plugin. Windows installer jobs use WiX 5.0.2. Flatpak jobs
-  fetch the GNOME 49 runtime from Flathub; Snap jobs use Snapcraft with core22
-  and its GNOME extension. These are packaging tools, not Rust dependencies.
+- Install cargo-packager 0.11.8 for DEB, AppImage, MSI and the macOS app bundle.
+  Its AppImage backend uses linuxdeploy with the GTK plugin configured in
+  `packaging/cargo-packager.json`; its MSI backend supplies WiX tooling.
+  RPM uses cargo-generate-rpm 0.21.0 and the app manifest's metadata.
+  Flatpak uses flatpak-builder, GNOME Platform/SDK 49 and the Rust SDK extension
+  for Freedesktop 25.08. Snap uses Snapcraft's Rust plugin with Rust 1.95.0,
+  core22 and the GNOME extension. These tools are not application dependencies.
 - Run the manual preview on the reviewed commit and verify all 22 assets,
   their checksums and actual application startup on each platform. A preview
   never publishes. No release tag is needed for it.
@@ -232,7 +239,7 @@ python3 -m unittest discover -s scripts -p 'test_package_*.py'
 
 ## Local packaging
 
-Python 3.11+ is required for the packaging helper. For a native Linux x86-64 build:
+Python 3.12+ is required for the packaging helper. For a native Linux x86-64 build:
 
 ```sh
 python3 scripts/package_release.py validate --tag v0.1.0
@@ -243,9 +250,11 @@ python3 scripts/package_release.py package --version 0.1.0 --target x86_64-unkno
 Use the target and executable name for your native platform. For explicit-target
 builds, the executable lives under `target/<target>/release/`.
 The helper packages binaries; it does not cross-compile them. macOS packaging
-requires `codesign`, `hdiutil` and the packaging-only Python tool
-`dmgbuild==1.6.7`. It verifies the thin ARM64 executable, signs the app, creates
-a compressed read-only DMG and verifies the disk image.
+requires cargo-packager 0.11.8, `codesign`, `hdiutil` and the packaging-only
+Python tool `dmgbuild==1.6.7`. cargo-packager constructs the `.app`; the helper
+retains numeric release versions, ad-hoc signing and the existing updater ZIP.
+It verifies the thin ARM64 executable, signs the app, creates a compressed
+read-only DMG and verifies the disk image.
 
 `dmgbuild` writes the Finder layout directly, using the white background and gray
 arrow in `assets/packaging/macos/dmg-background{,@2x}.png` and an `/Applications` symlink. No
@@ -254,6 +263,7 @@ backgrounds are checked-in image assets; packaging uses them directly.
 To reproduce the Apple Silicon macOS artifact:
 
 ```sh
+cargo install cargo-packager --version 0.11.8 --locked
 python3 -m venv /tmp/earthcraft-packaging
 /tmp/earthcraft-packaging/bin/python -m pip install dmgbuild==1.6.7
 rustup target add aarch64-apple-darwin
@@ -264,17 +274,28 @@ MACOSX_DEPLOYMENT_TARGET=11.0 cargo build -p earthcraft --release --no-default-f
 ### Additional native formats
 
 The base helper still creates the original portable archives. To add native Linux
-formats, install nFPM and linuxdeploy with its GTK plugin, then run:
+formats, install the pinned packaging tools, then run:
 
 ```sh
+cargo install cargo-packager --version 0.11.8 --locked
+cargo install cargo-generate-rpm --version 0.21.0 --locked
 python3 scripts/package_linux.py --version 0.1.0 --target x86_64-unknown-linux-gnu --binary target/release/earthcraft --output /tmp/earthcraft-release --formats deb rpm appimage
 ```
 
-Flatpak and Snap use the same helper with `--formats flatpak` or `--formats snap`;
-install the matching runtime or Snapcraft first, as in the workflow. On Windows,
-install WiX 5.0.2 and run `scripts/package_windows.py` with the same arguments as
-the base helper. It adds MSI packages and the x64 standalone EXE. FreeBSD's base
-helper uses `--target x86_64-unknown-freebsd` after a native CPU-only build.
+Flatpak and Snap use the same helper with `--formats flatpak` or `--formats snap`,
+without `--binary`. They build `git archive HEAD`, so commit source changes before
+packaging. Flatpak vendors the locked Cargo dependencies before invoking
+flatpak-builder offline with `packaging/flatpak.json`. Install its SDK/runtime
+and Rust extension as in the workflow. Snap uses `packaging/snapcraft.json`, a
+JSON representation of snapcraft.yaml, and the official Rust plugin with locked,
+CPU-only builds. Only the Snapcraft invocation uses sudo on the disposable CI host.
+Both formats compile their own binaries rather than wrapping the portable archive.
+
+On Windows, install cargo-packager 0.11.8 and run `scripts/package_windows.py`
+with the same arguments as the base helper. It adds MSI packages and the x64
+standalone EXE. FreeBSD's base helper uses `--target x86_64-unknown-freebsd` after
+a native CPU-only build. The release asset names and updater archive formats
+are unchanged by the packaging tools.
 
 Before consolidating checksum sidecars, validate a complete downloaded artifact set:
 

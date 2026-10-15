@@ -1,0 +1,21 @@
+{
+  "productName": "EarthCraft",
+  "identifier": "com.theri.earthcraft",
+  "description": "3D globe explorer with satellite imagery, live layers and KML places",
+  "homepage": "https://github.com/therichronicles/EarthCraft",
+  "authors": ["EarthCraft <earthcraft@localhost>"],
+  "publisher": "EarthCraft",
+  "category": "Education",
+  "deb": {
+    "section": "science",
+    "priority": "optional",
+    "depends": ["libc6 (>= 2.35)", "libgcc-s1", "libgtk-3-0", "libx11-6", "libxkbcommon0", "libwayland-client0", "xdg-utils"]
+  },
+  "appimage": {
+    "linuxdeployPlugins": {
+      "gtk": "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
+    }
+  },
+  "macos": {"minimumSystemVersion": "11.0"},
+  "windows": {"allowDowngrades": false}
+}

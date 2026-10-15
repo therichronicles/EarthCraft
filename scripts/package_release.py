@@ -5,7 +5,6 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
-import plistlib
 import re
 import shutil
 import subprocess
@@ -76,32 +75,14 @@ def package(version, target, binary, output):
         payload = Path(temporary) / name
         payload.mkdir()
         if "apple" in target:
-            contents = payload / "EarthCraft.app" / "Contents"
-            executable = contents / "MacOS" / "earthcraft"
-            executable.parent.mkdir(parents=True)
-            resources = contents / "Resources"
-            resources.mkdir()
-            shutil.copy2(ROOT / "assets" / "packaging" / "macos" / "icon.icns", resources / "EarthCraft.icns")
-            with (contents / "Info.plist").open("wb") as stream:
-                plistlib.dump(
-                    {
-                        "CFBundleIdentifier": "com.theri.earthcraft",
-                        "CFBundleName": "EarthCraft",
-                        "CFBundleDisplayName": "EarthCraft",
-                        "CFBundleExecutable": "earthcraft",
-                        "CFBundleIconFile": "EarthCraft.icns",
-                        "CFBundlePackageType": "APPL",
-                        "CFBundleVersion": version.split("-")[0].split("+")[0],
-                        "CFBundleShortVersionString": version.split("-")[0].split("+")[0],
-                        "LSMinimumSystemVersion": "11.0",
-                        "NSHighResolutionCapable": True,
-                    },
-                    stream,
-                )
+            import package_tools
+            app = package_tools.app_bundle(version, binary.resolve(), payload)
+            executable = app / "Contents/MacOS/earthcraft"
         else:
             executable = payload / ("earthcraft.exe" if "windows" in target else "earthcraft")
-        shutil.copy2(binary, executable)
-        executable.chmod(0o755)
+        if "apple" not in target:
+            shutil.copy2(binary, executable)
+            executable.chmod(0o755)
         if "apple" in target:
             app = payload / "EarthCraft.app"
             subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True)

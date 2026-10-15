@@ -1,0 +1,29 @@
+{
+  "app-id": "com.theri.earthcraft",
+  "branch": "stable",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "49",
+  "sdk": "org.gnome.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "earthcraft",
+  "finish-args": ["--share=network", "--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri", "--filesystem=host", "--env=EARTHCRAFT_UPDATE_MODE=manual"],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {"CARGO_HOME": "/run/build/earthcraft/cargo"}
+  },
+  "modules": [{
+    "name": "earthcraft",
+    "buildsystem": "simple",
+    "build-commands": [
+      "cargo build -p earthcraft --release --no-default-features --locked --offline",
+      "install -Dm755 target/release/earthcraft /app/bin/earthcraft",
+      "install -Dm644 assets/packaging/icon_256.png /app/share/icons/hicolor/256x256/apps/com.theri.earthcraft.png",
+      "install -Dm644 LICENSE /app/share/licenses/earthcraft/LICENSE",
+      "install -Dm644 packaging/earthcraft.desktop /app/share/applications/com.theri.earthcraft.desktop",
+      "sed -i 's/Icon=earthcraft/Icon=com.theri.earthcraft/' /app/share/applications/com.theri.earthcraft.desktop",
+      "install -Dm644 packaging/earthcraft.metainfo.xml /app/share/metainfo/com.theri.earthcraft.metainfo.xml",
+      "sed -i 's/earthcraft.desktop/com.theri.earthcraft.desktop/' /app/share/metainfo/com.theri.earthcraft.metainfo.xml"
+    ],
+    "sources": []
+  }]
+}

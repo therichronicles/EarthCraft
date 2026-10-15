@@ -1,0 +1,31 @@
+{
+  "name": "earthcraft",
+  "base": "core22",
+  "version": "0.1.0",
+  "summary": "Explore the Earth in a 3D globe",
+  "description": "Satellite imagery, live layers, search, KML places and distance measurements.",
+  "grade": "stable",
+  "confinement": "strict",
+  "license": "MIT",
+  "apps": {
+    "earthcraft": {
+      "command": "bin/earthcraft",
+      "desktop": "usr/share/applications/earthcraft.desktop",
+      "extensions": ["gnome"],
+      "plugs": ["network", "home", "removable-media", "audio-playback"],
+      "environment": {"EARTHCRAFT_UPDATE_MODE": "manual"}
+    }
+  },
+  "parts": {
+    "earthcraft": {
+      "plugin": "rust",
+      "rust-channel": "1.95.0",
+      "rust-path": ["apps/earthcraft"],
+      "rust-no-default-features": true,
+      "rust-cargo-parameters": ["--locked"],
+      "build-packages": ["pkg-config", "libgtk-3-dev", "libxkbcommon-dev", "libwayland-dev", "libx11-dev"],
+      "stage-packages": ["libgtk-3-0", "libxkbcommon0", "libx11-6", "libwayland-client0", "xdg-utils", "espeak"],
+      "override-build": "craftctl default\ninstall -Dm644 packaging/earthcraft.desktop \"$CRAFT_PART_INSTALL/usr/share/applications/earthcraft.desktop\"\ninstall -Dm644 assets/packaging/icon_256.png \"$CRAFT_PART_INSTALL/usr/share/icons/hicolor/256x256/apps/earthcraft.png\"\ninstall -Dm644 packaging/earthcraft.metainfo.xml \"$CRAFT_PART_INSTALL/usr/share/metainfo/com.theri.earthcraft.metainfo.xml\"\ninstall -Dm644 LICENSE \"$CRAFT_PART_INSTALL/usr/share/licenses/earthcraft/LICENSE\"\n"
+    }
+  }
+}
