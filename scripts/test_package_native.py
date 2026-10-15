@@ -129,6 +129,8 @@ class NativePackagingTests(unittest.TestCase):
                     shortcut = executable.find("w:Shortcut", namespace)
                     self.assertEqual(shortcut.attrib["Directory"], "ProgramMenuFolder")
                     self.assertEqual(shortcut.attrib["Advertise"], "yes")
+                    self.assertEqual(Path(shortcut.attrib["Icon"]).suffix, binary.suffix)
+                    self.assertEqual(installer.find("w:Icon", namespace).attrib["Id"], shortcut.attrib["Icon"])
                     component = installer.find(".//w:Component", namespace)
                     reference = installer.find("w:Feature/w:ComponentRef", namespace)
                     self.assertEqual(reference.attrib["Id"], component.attrib["Id"])

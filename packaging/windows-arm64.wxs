@@ -4,15 +4,15 @@
            Scope="perMachine" UpgradeCode="2dd9ce9e-10dc-56ac-91f3-0f508faf2572">
     <MajorUpgrade DowngradeErrorMessage="A newer EarthCraft version is already installed." />
     <MediaTemplate EmbedCab="yes" />
-    <Icon Id="EarthCraftIcon" SourceFile="$(var.Icon)" />
-    <Property Id="ARPPRODUCTICON" Value="EarthCraftIcon" />
+    <Icon Id="EarthCraft.exe" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="EarthCraft.exe" />
     <Property Id="ARPHELPLINK" Value="https://github.com/therichronicles/EarthCraft" />
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="EarthCraft">
         <Component Id="Application" Guid="*">
           <File Id="EarthCraftExe" Source="$(var.Binary)" KeyPath="yes">
             <Shortcut Id="LaunchEarthCraft" Name="EarthCraft" Directory="ProgramMenuFolder"
-                      Advertise="yes" WorkingDirectory="INSTALLFOLDER" Icon="EarthCraftIcon" />
+                      Advertise="yes" WorkingDirectory="INSTALLFOLDER" Icon="EarthCraft.exe" />
           </File>
         </Component>
       </Directory>
