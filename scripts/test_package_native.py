@@ -17,7 +17,11 @@ class NativePackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             directory = root / "AppDir"
-            directory.mkdir()
+            binary = root / "binary"
+            binary.write_bytes(b"executable fixture")
+            source = root / "source"
+            linux.stage_application(source, binary)
+            linux.stage_application(directory, binary)
             output = root / "dist"
             output.mkdir()
             archive = output / "earthcraft-0.1.0-linux-x64.AppImage"
@@ -26,6 +30,11 @@ class NativePackagingTests(unittest.TestCase):
 
             def linuxdeploy(command, **options):
                 if "--output" in command:
+                    metadata = directory / "usr/share/metainfo/earthcraft.appdata.xml"
+                    self.assertEqual(metadata.read_bytes(),
+                                     (source / f"usr/share/metainfo/{linux.APP_ID}.metainfo.xml").read_bytes())
+                    self.assertEqual(ET.parse(metadata).findtext("launchable"), "earthcraft.desktop")
+                    self.assertFalse((directory / f"usr/share/metainfo/{linux.APP_ID}.metainfo.xml").exists())
                     destination = Path(options["env"]["LDAI_OUTPUT"])
                     destination.write_bytes(b"AppImage fixture")
                     # Model zsyncmake's basename output in the tool's cwd.
@@ -33,14 +42,15 @@ class NativePackagingTests(unittest.TestCase):
                     (working_directory / (destination.name + ".zsync")).write_bytes(content)
 
             with mock.patch.object(linux.subprocess, "run", side_effect=linuxdeploy):
-                linux.appimage(directory, archive, "x86_64", root / "source")
+                linux.appimage(directory, archive, "x86_64", source)
             self.assertEqual(delta.read_bytes(), content)
             self.assertEqual(delta.with_suffix(".zsync.sha256").read_text(),
                              f"{hashlib.sha256(content).hexdigest()}  {delta.name}\n")
             delta.unlink()
+            linux.stage_application(directory, binary)
             with mock.patch.object(linux.subprocess, "run"):
                 with self.assertRaisesRegex(ValueError, "did not create its zsync"):
-                    linux.appimage(directory, archive, "x86_64", root / "source")
+                    linux.appimage(directory, archive, "x86_64", source)
 
     def test_complete_asset_set_requires_each_format_and_valid_checksums(self):
         version = release.workspace_version()
