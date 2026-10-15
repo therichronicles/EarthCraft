@@ -35,16 +35,16 @@ def native_package(version, target, binary, archive, temporary, format_name):
                          files=desktop_files())
     env = dict(os.environ)
     if format_name == "appimage":
-        # A separate launcher gives AppImage's desktop and metadata files the
-        # component ID while preserving the actual earthcraft executable name.
-        launcher = temporary / APP_ID
+        # cargo-packager derives desktop/icon names from the main file's stem.
+        # An extension keeps the full dotted ID instead of dropping .earthcraft.
+        launcher = temporary / f"{APP_ID}.sh"
         shutil.copy2(release.ROOT / "packaging/appimage-launcher.sh", launcher)
         launcher.chmod(0o755)
         config["binaries"] = [{"path": str(launcher), "main": True},
                               {"path": str(binary.resolve()), "main": False}]
         desktop = temporary / f"{APP_ID}.desktop"
         desktop.write_text((release.ROOT / "packaging/earthcraft.desktop").read_text()
-                           .replace("Exec=earthcraft", f"Exec={APP_ID}")
+                           .replace("Exec=earthcraft", f"Exec={launcher.name}")
                            .replace("Icon=earthcraft", f"Icon={APP_ID}"), encoding="utf-8")
         metadata = temporary / f"{APP_ID}.appdata.xml"
         metadata.write_text((release.ROOT / "packaging/earthcraft.metainfo.xml").read_text()
@@ -106,7 +106,10 @@ def flatpak(archive, architecture, temporary):
     manifest_path = temporary / "flatpak.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     repository = temporary / "flatpak-repository"
-    subprocess.run(["flatpak-builder", "--user", "--force-clean", f"--arch={architecture}",
+    # The maintained builder supports GNOME 49's appstreamcli compose command;
+    # Ubuntu 22.04's native builder still requires the removed appstream-compose.
+    subprocess.run(["flatpak", "run", "org.flatpak.Builder", "--user", "--force-clean",
+                    f"--state-dir={temporary / 'flatpak-state'}", f"--arch={architecture}",
                     f"--repo={repository}", str(temporary / "flatpak-build"), str(manifest_path)], check=True)
     subprocess.run(["flatpak", "build-bundle", f"--arch={architecture}",
                     "--runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo",
@@ -123,8 +126,16 @@ def snap(version, architecture, archive, temporary):
     (project / "snap").mkdir(parents=True)
     # JSON is valid YAML; no additional Python dependency is needed.
     (project / "snap/snapcraft.yaml").write_text(json.dumps(config), encoding="utf-8")
-    subprocess.run(["sudo", "env", f"PATH={os.environ['PATH']}", "snapcraft",
-                    "--destructive-mode", "--output", str(archive)], cwd=project, check=True)
+    try:
+        subprocess.run(["sudo", "env", f"PATH={os.environ['PATH']}", "snapcraft",
+                        "--destructive-mode", "--output", str(archive)], cwd=project, check=True)
+    finally:
+        # Snapcraft builds as root. Restore the caller's ownership on both
+        # success and failure before TemporaryDirectory removes the build tree.
+        owned_paths = [str(project)]
+        if archive.exists():
+            owned_paths.append(str(archive))
+        subprocess.run(["sudo", "chown", "-R", f"--reference={source}", *owned_paths], check=True)
 
 
 def package(version, target, binary, output, formats):

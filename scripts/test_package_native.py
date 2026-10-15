@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import plistlib
+import subprocess
 import tempfile
 import tomllib
 import unittest
@@ -63,11 +64,13 @@ class NativePackagingTests(unittest.TestCase):
 
                 def package(config, env):
                     main, executable = config["binaries"]
-                    self.assertEqual(Path(main["path"]).name, tools.APP_ID)
+                    launcher = Path(main["path"])
+                    self.assertEqual(launcher.stem, tools.APP_ID)
                     self.assertEqual(Path(executable["path"]).read_bytes(), binary.read_bytes())
                     self.assertIn("EARTHCRAFT_UPDATE_MODE=manual", Path(main["path"]).read_text())
                     desktop = Path(config["deb"]["desktopTemplate"])
-                    self.assertIn(f"Exec={tools.APP_ID}", desktop.read_text())
+                    self.assertIn(f"Exec={launcher.name}\n", desktop.read_text())
+                    self.assertEqual(desktop.stem, launcher.stem)
                     self.assertIn(f"Icon={tools.APP_ID}", desktop.read_text())
                     self.assertEqual(config["appimage"]["linuxdeployPlugins"].keys(), {"gtk"})
                     for source, destination in config["appimage"]["files"].items():
@@ -152,7 +155,8 @@ class NativePackagingTests(unittest.TestCase):
         self.assertEqual(part["plugin"], "rust")
         self.assertEqual(part["rust-channel"], "1.95.0")
         self.assertTrue(part["rust-no-default-features"])
-        self.assertIn("--locked", part["rust-cargo-parameters"])
+        # Snapcraft's Rust plugin already adds --locked to cargo install.
+        self.assertNotIn("--locked", part.get("rust-cargo-parameters", []))
         self.assertEqual(snap["apps"]["earthcraft"]["environment"]["EARTHCRAFT_UPDATE_MODE"], "manual")
         self.assertIn("craftctl default", part["override-build"])
         with (release.ROOT / "apps/earthcraft/Cargo.toml").open("rb") as stream:
@@ -169,6 +173,10 @@ class NativePackagingTests(unittest.TestCase):
             archive = root / "earthcraft.snap"
 
             def snapcraft(command, **options):
+                if command[:2] == ["sudo", "chown"]:
+                    self.assertIn(f"--reference={root / 'source'}", command)
+                    self.assertIn(str(archive), command)
+                    return
                 config = json.loads((options["cwd"] / "snap/snapcraft.yaml").read_text())
                 self.assertEqual(config["version"], "7.8.9")
                 self.assertEqual(config["architectures"][0]["build-for"], ["arm64"])
@@ -176,6 +184,51 @@ class NativePackagingTests(unittest.TestCase):
 
             with mock.patch.object(linux, "source_snapshot", return_value=root / "source"), mock.patch.object(linux.subprocess, "run", side_effect=snapcraft):
                 linux.snap("7.8.9", "arm64", archive, root)
+
+    def test_snap_build_failure_restores_ownership_and_preserves_the_build_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            commands = []
+
+            def snapcraft(command, **options):
+                commands.append(command)
+                if "snapcraft" in command:
+                    raise subprocess.CalledProcessError(9, command)
+                self.assertEqual(command, ["sudo", "chown", "-R", f"--reference={source}",
+                                           str(root / "snap-project")])
+
+            with mock.patch.object(linux, "source_snapshot", return_value=source), mock.patch.object(linux.subprocess, "run", side_effect=snapcraft):
+                with self.assertRaises(subprocess.CalledProcessError) as error:
+                    linux.snap("7.8.9", "amd64", root / "earthcraft.snap", root)
+            self.assertEqual(error.exception.returncode, 9)
+            self.assertEqual(len(commands), 2)
+
+    def test_flatpak_uses_maintained_builder_and_retains_appstream_composition(self):
+        for architecture in ("x86_64", "aarch64"):
+            with self.subTest(architecture=architecture), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / "source"
+                source.mkdir()
+                archive = root / "earthcraft.flatpak"
+                commands = []
+
+                def flatpak(command, **options):
+                    commands.append(command)
+                    if command[:3] == ["flatpak", "run", "org.flatpak.Builder"]:
+                        self.assertIn(f"--arch={architecture}", command)
+                        self.assertIn(f"--state-dir={root / 'flatpak-state'}", command)
+                        manifest = json.loads(Path(command[-1]).read_text())
+                        self.assertTrue(manifest.get("appstream-compose", True))
+                        self.assertEqual(manifest["modules"][0]["sources"], [{"type": "dir", "path": str(source)}])
+                    elif command[:2] == ["flatpak", "build-bundle"]:
+                        archive.write_bytes(b"Flatpak fixture")
+
+                with mock.patch.object(linux, "source_snapshot", return_value=source), mock.patch.object(linux.subprocess, "run", side_effect=flatpak):
+                    linux.flatpak(archive, architecture, root)
+                self.assertEqual(len(commands), 3)
+                self.assertEqual(archive.read_bytes(), b"Flatpak fixture")
 
 
 if __name__ == "__main__":

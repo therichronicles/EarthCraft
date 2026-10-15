@@ -209,9 +209,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
+          sudo apt-get install -y flatpak
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user --noninteractive flathub org.gnome.Platform//49 org.gnome.Sdk//49 org.freedesktop.Sdk.Extension.rust-stable//25.08
+          flatpak install --user --noninteractive flathub org.flatpak.Builder org.gnome.Platform//49 org.gnome.Sdk//49 org.freedesktop.Sdk.Extension.rust-stable//25.08
       - name: Package Flatpak
         if: matrix.format == 'flatpak'
         run: python scripts/package_linux.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --output dist --formats flatpak

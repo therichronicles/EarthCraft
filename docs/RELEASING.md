@@ -192,7 +192,9 @@ personal access token are needed.
   Its AppImage backend uses linuxdeploy with the GTK plugin configured in
   `packaging/cargo-packager.json`; its MSI backend supplies WiX tooling.
   RPM uses cargo-generate-rpm 0.21.0 and the app manifest's metadata.
-  Flatpak uses flatpak-builder, GNOME Platform/SDK 49 and the Rust SDK extension
+  Flatpak uses the maintained `org.flatpak.Builder` from Flathub (Ubuntu 22.04's
+  native builder expects the SDK's removed `appstream-compose` command),
+  GNOME Platform/SDK 49 and the Rust SDK extension
   for Freedesktop 25.08. Snap uses Snapcraft's Rust plugin with Rust 1.95.0,
   core22 and the GNOME extension. These tools are not application dependencies.
 - Run the manual preview on the reviewed commit and verify all 22 assets,
@@ -285,12 +287,14 @@ python3 scripts/package_linux.py --version 0.1.0 --target x86_64-unknown-linux-g
 Flatpak and Snap use the same helper with `--formats flatpak` or `--formats snap`,
 without `--binary`. They build `git archive HEAD`, so commit source changes before
 packaging. Flatpak vendors the locked Cargo dependencies before invoking
-flatpak-builder offline with `packaging/flatpak.json`. Install its SDK/runtime
-and Rust extension as in the workflow. Snap uses `packaging/snapcraft.json`, a
+flatpak-builder offline with `packaging/flatpak.json`. Install `org.flatpak.Builder`,
+its SDK/runtime and the Rust extension as in the workflow. Snap uses `packaging/snapcraft.json`, a
 JSON representation of snapcraft.yaml, and the official Rust plugin with locked,
 CPU-only builds. The template omits `version`: the helper injects the workspace
 version supplied by the release workflow, so `Cargo.toml` is the single source.
-Only the Snapcraft invocation uses sudo on the disposable CI host.
+Snapcraft's Rust plugin supplies `--locked`; do not repeat it in extra Cargo
+parameters. Snapcraft and restoration of its generated files' ownership use
+sudo on the disposable CI host, including cleanup after a failed build.
 Both formats compile their own binaries rather than wrapping the portable archive.
 
 On Windows, install cargo-packager 0.11.8 and run `scripts/package_windows.py`
