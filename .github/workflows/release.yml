@@ -160,13 +160,19 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: Expand-Archive -LiteralPath "downloaded/earthcraft-${env:VERSION}-windows-${env:ARCH}-portable.zip" -DestinationPath payload
       - uses: dtolnay/rust-toolchain@master
+        if: matrix.arch == 'x64'
         with:
           toolchain: '1.95'
       - uses: Swatinem/rust-cache@v2
+        if: matrix.arch == 'x64'
         with:
           key: release-packager-windows-x64
       - name: Install cargo-packager
+        if: matrix.arch == 'x64'
         run: cargo install cargo-packager --version 0.11.8 --locked
+      - name: Install WiX for ARM64
+        if: matrix.arch == 'arm64'
+        run: dotnet tool install --global wix --version 5.0.2
       - name: Package MSI and standalone executable
         run: python scripts/package_windows.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary payload/earthcraft.exe --output dist
       - uses: actions/upload-artifact@v7

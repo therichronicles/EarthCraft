@@ -26,7 +26,16 @@ def package(version, target, binary, output):
     with tempfile.TemporaryDirectory(prefix="earthcraft-msi-") as temporary:
         output_directory = Path(temporary)
         config = tools.configuration(version, target, binary, output_directory, "wix")
-        tools.run(config)
+        if architecture == "arm64":
+            # cargo-packager 0.11.8 bundles WiX 3.11, which cannot compile ARM64.
+            subprocess.run(["wix", "build", "-arch", "arm64", "-pdbtype", "none",
+                            "-d", f"Version={config['version']}",
+                            "-d", f"Binary={binary.resolve()}",
+                            "-d", f"Icon={release.ROOT / 'assets/packaging/icon.ico'}",
+                            "-o", str(output_directory / "earthcraft.msi"),
+                            str(release.ROOT / "packaging/windows-arm64.wxs")], check=True)
+        else:
+            tools.run(config)
         shutil.copy2(tools.artifact(output_directory, "msi"), installer)
     release.write_checksum(installer)
     if architecture == "x64":

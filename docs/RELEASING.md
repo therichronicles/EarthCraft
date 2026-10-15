@@ -53,9 +53,10 @@ before announcing them.
 DEB and RPM packages install the app, desktop entry and icon through the system
 package manager, with GTK and other runtime dependencies declared. MSI packages
 install to Program Files and add a Start menu shortcut; they require administrator
-access. cargo-packager manages MSI product and upgrade metadata through its WiX
-backend; MSI uses the numeric major/minor/patch version within Windows Installer
-limits. The x64
+access. cargo-packager manages x64 MSI metadata through its WiX backend. ARM64
+uses WiX 5 with `packaging/windows-arm64.wxs`, retaining a stable upgrade code,
+because cargo-packager 0.11.8 bundles WiX 3.11 without ARM64 support. Both use
+the numeric major/minor/patch version within Windows Installer limits. The x64
 standalone EXE is the same application binary as the portable ZIP.
 Optional narration requires `espeak` on DEB installations; RPM recommends
 `espeak-ng`, and the Snap includes `espeak`.
@@ -188,9 +189,10 @@ personal access token are needed.
   indefinitely require checking runner availability, billing and Actions policy.
 - Allow the `vmactions/freebsd-vm@v1` action and nested virtualization on the
   Ubuntu host used for FreeBSD. That job installs Rust 1.95.0 inside the VM.
-- Install cargo-packager 0.11.8 for DEB, AppImage, MSI and the macOS app bundle.
+- Install cargo-packager 0.11.8 for DEB, AppImage, x64 MSI and the macOS app bundle.
   Its AppImage backend uses linuxdeploy with the GTK plugin configured in
-  `packaging/cargo-packager.json`; its MSI backend supplies WiX tooling.
+  `packaging/cargo-packager.json`; its x64 MSI backend supplies WiX tooling.
+  ARM64 MSI uses the official WiX 5.0.2 .NET tool.
   RPM uses cargo-generate-rpm 0.21.0 and the app manifest's metadata.
   Flatpak uses the maintained `org.flatpak.Builder` from Flathub (Ubuntu 22.04's
   native builder expects the SDK's removed `appstream-compose` command),
@@ -299,7 +301,8 @@ parameters. Snapcraft and restoration of its generated files' ownership use
 sudo on the disposable CI host, including cleanup after a failed build.
 Both formats compile their own binaries rather than wrapping the portable archive.
 
-On Windows, install cargo-packager 0.11.8 and run `scripts/package_windows.py`
+On Windows, install cargo-packager 0.11.8 for x64 or run
+`dotnet tool install --global wix --version 5.0.2` for ARM64, then run `scripts/package_windows.py`
 with the same arguments as the base helper. It adds MSI packages and the x64
 standalone EXE. FreeBSD's base helper uses `--target x86_64-unknown-freebsd` after
 a native CPU-only build. The release asset names and updater archive formats

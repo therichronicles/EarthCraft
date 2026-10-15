@@ -203,7 +203,7 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
 
 Report which checks actually ran and which platforms/services remain unverified.
 For packaging, use the release helpers in `scripts/` and the tool configuration
-in `packaging/`. cargo-packager constructs the native bundles/installers, while
+in `packaging/`. cargo-packager constructs the native bundles and x64 MSI, while
 RPM metadata lives in the app manifest. Release binaries still go to the root
 `target/release` (or `target/<target>/release` for explicit targets). macOS bundles use
 `assets/packaging/macos/icon.icns`, generated from the unchanged `assets/packaging/icon.png` artwork with
@@ -211,7 +211,8 @@ transparent Dock padding and standard and Retina sizes (16–1024 pixels).
 The macOS runtime icon is `assets/packaging/macos/icon.png`, with the same padding as the
 bundle icon: eframe applies it to the Dock at startup. Keep both assets aligned;
 Windows/Linux retain `assets/packaging/icon_256.png`.
-The release workflow builds DEB/AppImage/MSI and the macOS app with cargo-packager,
+The release workflow builds DEB/AppImage/x64 MSI and the macOS app with cargo-packager,
+ARM64 MSI with WiX 5 (cargo-packager's bundled WiX 3.11 lacks ARM64 support),
 RPM with cargo-generate-rpm, Flatpak with flatpak-builder and Snap with the official
 Snapcraft Rust plugin. macOS keeps dmgbuild for the existing Finder layout. See
 [release tooling](docs/RELEASING.md) for pinned versions and native validation limits.

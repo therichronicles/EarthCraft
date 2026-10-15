@@ -113,8 +113,32 @@ class NativePackagingTests(unittest.TestCase):
                     self.assertEqual(Path(config["binaries"][0]["path"]).with_suffix(".exe"), binary.resolve())
                     (Path(config["outDir"]) / "tool-generated.msi").write_bytes(b"MSI fixture")
 
-                with mock.patch.object(tools, "run", side_effect=package):
+                def wix(command, **options):
+                    self.assertEqual(command[:4], ["wix", "build", "-arch", "arm64"])
+                    self.assertIn(f"Version={version}", command)
+                    self.assertIn(f"Binary={binary.resolve()}", command)
+                    self.assertIn(f"Icon={release.ROOT / 'assets/packaging/icon.ico'}", command)
+                    self.assertTrue(options["check"])
+                    manifest = ET.parse(command[-1])
+                    namespace = {"w": "http://wixtoolset.org/schemas/v4/wxs"}
+                    installer = manifest.find("w:Package", namespace)
+                    self.assertEqual(installer.attrib["Scope"], "perMachine")
+                    self.assertEqual(installer.attrib["UpgradeCode"], "2dd9ce9e-10dc-56ac-91f3-0f508faf2572")
+                    executable = installer.find(".//w:File", namespace)
+                    self.assertEqual(executable.attrib["Source"], "$(var.Binary)")
+                    shortcut = executable.find("w:Shortcut", namespace)
+                    self.assertEqual(shortcut.attrib["Directory"], "ProgramMenuFolder")
+                    self.assertEqual(shortcut.attrib["Advertise"], "yes")
+                    component = installer.find(".//w:Component", namespace)
+                    reference = installer.find("w:Feature/w:ComponentRef", namespace)
+                    self.assertEqual(reference.attrib["Id"], component.attrib["Id"])
+                    Path(command[command.index("-o") + 1]).write_bytes(b"MSI fixture")
+
+                with mock.patch.object(tools, "run", side_effect=package) as packager, \
+                        mock.patch.object(windows.subprocess, "run", side_effect=wix) as wix_tool:
                     windows.package(version, target, binary, root / "dist")
+                self.assertEqual(packager.call_count, int(architecture == "x64"))
+                self.assertEqual(wix_tool.call_count, int(architecture == "arm64"))
                 installer = root / f"dist/earthcraft-{version}-windows-{architecture}.msi"
                 self.assertEqual(installer.read_bytes(), b"MSI fixture")
                 standalone = root / f"dist/earthcraft-{version}-windows-x64.exe"
