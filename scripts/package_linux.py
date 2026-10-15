@@ -60,6 +60,16 @@ def nfpm_configuration(version, architecture, directory, files):
 
 
 def appimage(directory, archive, architecture, source):
+    # appimagetool derives the metadata filename from the desktop filename;
+    # AppStream also requires that filename to match the component ID.
+    # Keep this adaptation in the isolated AppDir and leave other formats alone.
+    desktop = directory.parent / f"{APP_ID}.desktop"
+    desktop.write_bytes((source / "usr/share/applications/earthcraft.desktop").read_bytes())
+    (directory / "usr/share/applications/earthcraft.desktop").unlink()
+    metadata = directory / "usr/share/metainfo" / f"{APP_ID}.metainfo.xml"
+    appdata = metadata.with_name(f"{APP_ID}.appdata.xml")
+    appdata.write_text(metadata.read_text().replace("earthcraft.desktop", f"{APP_ID}.desktop"), encoding="utf-8")
+    metadata.unlink()
     # linuxdeploy collects linked libraries and its GTK plugin collects schemas,
     # loaders and modules; shipping just the executable would omit native dialogs.
     env = {**os.environ, "ARCH": architecture, "APPIMAGE_EXTRACT_AND_RUN": "1",
@@ -67,7 +77,7 @@ def appimage(directory, archive, architecture, source):
            "LDAI_UPDATE_INFORMATION": f"gh-releases-zsync|therichronicles|EarthCraft|latest|earthcraft-*-linux-{'x64' if architecture == 'x86_64' else 'arm64'}.AppImage.zsync"}
     subprocess.run(["linuxdeploy", "--appdir", str(directory),
                     "--executable", str(source / "usr/bin/earthcraft"),
-                    "--desktop-file", str(source / "usr/share/applications/earthcraft.desktop"),
+                    "--desktop-file", str(desktop),
                     "--icon-file", str(source / "usr/share/icons/hicolor/256x256/apps/earthcraft.png"),
                     "--plugin", "gtk"], check=True, env=env)
     # Preserve GTK's generated setup hooks while keeping managed bundle updates
@@ -87,10 +97,6 @@ done
 exec "$APPDIR/usr/bin/earthcraft" "$@"
 ''', encoding="utf-8")
     launcher.chmod(0o755)
-    # appimagetool derives this legacy filename from earthcraft.desktop.
-    # Rename only the isolated AppDir copy; other formats retain the app ID.
-    metadata = directory / "usr/share/metainfo" / f"{APP_ID}.metainfo.xml"
-    metadata.replace(metadata.with_name("earthcraft.appdata.xml"))
     # zsyncmake writes its sidecar in the working directory, even when the
     # AppImage destination is absolute. Keep both release files together.
     subprocess.run(["linuxdeploy", "--appdir", str(directory), "--output", "appimage"],

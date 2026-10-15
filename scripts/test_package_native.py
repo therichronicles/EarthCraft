@@ -30,16 +30,25 @@ class NativePackagingTests(unittest.TestCase):
 
             def linuxdeploy(command, **options):
                 if "--output" in command:
-                    metadata = directory / "usr/share/metainfo/earthcraft.appdata.xml"
-                    self.assertEqual(metadata.read_bytes(),
-                                     (source / f"usr/share/metainfo/{linux.APP_ID}.metainfo.xml").read_bytes())
-                    self.assertEqual(ET.parse(metadata).findtext("launchable"), "earthcraft.desktop")
+                    desktop = directory / f"{linux.APP_ID}.desktop"
+                    metadata = directory / f"usr/share/metainfo/{desktop.stem}.appdata.xml"
+                    component = ET.parse(metadata)
+                    self.assertEqual(component.findtext("id"), desktop.stem)
+                    self.assertEqual(component.findtext("launchable"), desktop.name)
+                    self.assertEqual(desktop.read_bytes(), (source / "usr/share/applications/earthcraft.desktop").read_bytes())
                     self.assertFalse((directory / f"usr/share/metainfo/{linux.APP_ID}.metainfo.xml").exists())
+                    self.assertFalse((directory / "usr/share/applications/earthcraft.desktop").exists())
+                    self.assertEqual(ET.parse(source / f"usr/share/metainfo/{linux.APP_ID}.metainfo.xml").findtext("launchable"), "earthcraft.desktop")
                     destination = Path(options["env"]["LDAI_OUTPUT"])
                     destination.write_bytes(b"AppImage fixture")
                     # Model zsyncmake's basename output in the tool's cwd.
                     working_directory = Path(options.get("cwd", root))
                     (working_directory / (destination.name + ".zsync")).write_bytes(content)
+                else:
+                    desktop = Path(command[command.index("--desktop-file") + 1])
+                    self.assertEqual(desktop.name, f"{linux.APP_ID}.desktop")
+                    # Model linuxdeploy copying the supplied desktop entry.
+                    (directory / desktop.name).write_bytes(desktop.read_bytes())
 
             with mock.patch.object(linux.subprocess, "run", side_effect=linuxdeploy):
                 linux.appimage(directory, archive, "x86_64", source)
