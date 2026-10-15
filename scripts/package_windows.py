@@ -34,7 +34,7 @@ def installer_source(version, architecture, binary):
                       UpgradeCode=str(uuid.uuid5(UPGRADE_NAMESPACE, architecture)))
     element(package, "MajorUpgrade", DowngradeErrorMessage="A newer EarthCraft version is already installed.")
     element(package, "MediaTemplate", EmbedCab="yes")
-    element(package, "Icon", Id="EarthCraftIcon", SourceFile=str(release.ROOT / "assets/icon.ico"))
+    element(package, "Icon", Id="EarthCraftIcon", SourceFile=str(release.ROOT / "assets/packaging/icon.ico"))
     element(package, "Property", Id="ARPPRODUCTICON", Value="EarthCraftIcon")
     element(package, "Property", Id="ARPHELPLINK", Value="https://github.com/therichronicles/EarthCraft")
     programs = element(package, "StandardDirectory", Id="ProgramFiles6432Folder")

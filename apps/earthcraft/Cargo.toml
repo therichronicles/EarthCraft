@@ -37,7 +37,7 @@ rfd = { workspace = true, default-features = true }
 [package.metadata.bundle]
 name = "EarthCraft"
 identifier = "com.theri.earthcraft"
-icon = ["../../assets/macos/icon.icns"]
+icon = ["../../assets/packaging/macos/icon.icns"]
 
 # ── .deb package (cargo deb) ──
 [package.metadata.deb]
@@ -50,7 +50,7 @@ extended-description = "3D globe in the style of Google Earth: satellite imagery
 assets = [
     ["../../target/release/earthcraft", "usr/bin/", "755"],
     ["../../packaging/earthcraft.desktop", "usr/share/applications/", "644"],
-    ["../../assets/icon_256.png", "usr/share/icons/hicolor/256x256/apps/earthcraft.png", "644"],
+    ["../../assets/packaging/icon_256.png", "usr/share/icons/hicolor/256x256/apps/earthcraft.png", "644"],
     ["../../README.md", "usr/share/doc/earthcraft/README", "644"],
 ]
 

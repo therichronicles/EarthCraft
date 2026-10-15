@@ -32,7 +32,7 @@ def stage_application(directory, binary):
     files = {
         "usr/bin/earthcraft": binary,
         "usr/share/applications/earthcraft.desktop": release.ROOT / "packaging/earthcraft.desktop",
-        "usr/share/icons/hicolor/256x256/apps/earthcraft.png": release.ROOT / "assets/icon_256.png",
+        "usr/share/icons/hicolor/256x256/apps/earthcraft.png": release.ROOT / "assets/packaging/icon_256.png",
         "usr/share/licenses/earthcraft/LICENSE": release.ROOT / "LICENSE",
         f"usr/share/metainfo/{APP_ID}.metainfo.xml": release.ROOT / "packaging/earthcraft.metainfo.xml",
     }

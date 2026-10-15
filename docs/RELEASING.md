@@ -248,7 +248,7 @@ requires `codesign`, `hdiutil` and the packaging-only Python tool
 a compressed read-only DMG and verifies the disk image.
 
 `dmgbuild` writes the Finder layout directly, using the white background and gray
-arrow in `assets/macos/dmg-background{,@2x}.png` and an `/Applications` symlink. No
+arrow in `assets/packaging/macos/dmg-background{,@2x}.png` and an `/Applications` symlink. No
 Finder automation or app runtime dependency is needed. The standard and Retina
 backgrounds are checked-in image assets; packaging uses them directly.
 To reproduce the Apple Silicon macOS artifact:

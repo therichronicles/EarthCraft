@@ -81,7 +81,7 @@ def package(version, target, binary, output):
             executable.parent.mkdir(parents=True)
             resources = contents / "Resources"
             resources.mkdir()
-            shutil.copy2(ROOT / "assets" / "macos" / "icon.icns", resources / "EarthCraft.icns")
+            shutil.copy2(ROOT / "assets" / "packaging" / "macos" / "icon.icns", resources / "EarthCraft.icns")
             with (contents / "Info.plist").open("wb") as stream:
                 plistlib.dump(
                     {
@@ -125,7 +125,7 @@ def package(version, target, binary, output):
                     "format": "UDZO",
                     "files": [str(app)],
                     "symlinks": {"Applications": "/Applications"},
-                    "background": str(ROOT / "assets" / "macos" / "dmg-background.png"),
+                    "background": str(ROOT / "assets" / "packaging" / "macos" / "dmg-background.png"),
                     "window_rect": ((200, 200), (640, 270)),
                     "default_view": "icon-view",
                     "icon_size": 128,

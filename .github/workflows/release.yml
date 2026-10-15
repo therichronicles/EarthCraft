@@ -9,11 +9,8 @@ on:
       - 'scripts/package_*.py'
       - 'scripts/test_package_*.py'
       - 'packaging/**'
-      - 'assets/icon.ico'
-      - 'assets/icon_256.png'
+      - 'assets/packaging/**'
       - 'cliff.toml'
-      - 'assets/macos/icon.icns'
-      - 'assets/macos/dmg-background*.png'
       - 'docs/RELEASING.md'
   workflow_dispatch:
 

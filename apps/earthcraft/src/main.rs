@@ -15,8 +15,8 @@ use eframe::egui;
 use std::sync::{Arc, atomic::Ordering};
 const INITIAL_WINDOW_SIZE_POINTS: [f32; 2] = [1280.0, 800.0];
 const APP_ICON_PNG: &[u8] = std::cfg_select! {
-    target_os = "macos" => include_bytes!("../../../assets/macos/icon.png"),
-    _ => include_bytes!("../../../assets/icon_256.png"),
+    target_os = "macos" => include_bytes!("../../../assets/packaging/macos/icon.png"),
+    _ => include_bytes!("../../../assets/packaging/icon_256.png"),
 };
 
 fn main() -> Result<(), eframe::Error> {
