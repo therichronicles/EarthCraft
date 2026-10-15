@@ -28,10 +28,10 @@ rstar.workspace = true
 sys-locale.workspace = true
 self_update.workspace = true
 
-# Native file/folder dialogs. On Linux we use GTK3 (works without xdg-desktop-portal).
-[target.'cfg(target_os = "linux")'.dependencies]
+# Native file/folder dialogs. Linux and FreeBSD use GTK3 without a desktop portal.
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 rfd = { workspace = true, features = ["gtk3"] }
-[target.'cfg(not(target_os = "linux"))'.dependencies]
+[target.'cfg(not(any(target_os = "linux", target_os = "freebsd")))'.dependencies]
 rfd = { workspace = true, default-features = true }
 
 [package.metadata.bundle]

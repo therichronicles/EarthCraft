@@ -18,6 +18,11 @@ Linux (se faltar algo): `sudo apt install libxkbcommon-dev libwayland-dev libx11
 
 Uma conexão com a internet é necessária para baixar os tiles do mapa.
 
+O fluxo de lançamento fornece arquivos Linux, AppImage, DEB, RPM, Flatpak e Snap;
+versões portáteis e instaladores MSI para Windows x64 e ARM64; e um arquivo
+para FreeBSD x86-64. Os downloads para macOS continuam como DMGs para Apple Silicon.
+Veja o [guia de lançamento](docs/RELEASING.md) para requisitos e instalação.
+
 **Downloads para macOS (Apple Silicon):** Abra o DMG e arraste o EarthCraft para Aplicativos.
 O app não é notarizado, então o Gatekeeper pode bloquear a primeira abertura.
 Tente abrir uma vez, feche o aviso e acesse **Ajustes do Sistema → Privacidade e

@@ -18,6 +18,11 @@ Linux (if something is missing):  `sudo apt install libxkbcommon-dev libwayland-
 
 An internet connection is required to download map tiles.
 
+The release workflow provides Linux archives, AppImage, DEB, RPM, Flatpak and Snap;
+Windows portable builds and MSI installers for x64 and ARM64; and a FreeBSD
+x86-64 archive. macOS downloads remain Apple Silicon DMGs. See the
+[release guide](docs/RELEASING.md) for runtime requirements and installation.
+
 **macOS downloads (Apple Silicon):** Open the DMG and drag EarthCraft to Applications. The app
 is not notarized, so Gatekeeper may block the first launch. Try opening it once,
 dismiss the warning, then go to **System Settings → Privacy & Security → Open

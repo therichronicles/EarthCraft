@@ -29,9 +29,9 @@ class ReleasePackagingTests(unittest.TestCase):
                     name = f"earthcraft-{version}-{release.TARGETS[target]}"
                     self.assertEqual(
                         archive.name,
-                        name + (".tar.gz" if "linux" in target else ".zip"),
+                        name + (".zip" if "windows" in target else ".tar.gz"),
                     )
-                    if "linux" in target:
+                    if "windows" not in target:
                         with tarfile.open(archive) as contents:
                             self.assertEqual(contents.getnames(), ["earthcraft"])
                             executable = contents.getmember("earthcraft")

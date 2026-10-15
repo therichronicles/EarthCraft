@@ -1,9 +1,10 @@
 # Releases
 
 The [release workflow](../.github/workflows/release.yml) builds locked release
-binaries with Rust 1.95. Downloads contain only the application: a bare executable
-on Linux/Windows or `EarthCraft.app` inside a macOS disk image. macOS also publishes
-a ZIP of that same signed app bundle for in-app updates.
+binaries with Rust 1.95. Portable archives contain the application executable;
+native installers and Linux bundles also contain their desktop integration and
+runtime/package metadata. macOS keeps its Apple Silicon DMG and a ZIP of that
+same signed app bundle for in-app updates.
 These artifacts use `--no-default-features`: experimental GPU globe rendering is excluded
 from release downloads on every platform. CPU rendering remains the default.
 
@@ -13,31 +14,70 @@ separate from development checks. An initial run still compiles dependencies;
 compatible later runs can reuse them. Caching does not reuse previously published
 application binaries: every release still builds and packages its tagged source.
 
-| Platform | Artifact |
+| Platform | Release files (prefix `earthcraft-0.1.0-`) |
 | --- | --- |
-| Linux x86-64 | `earthcraft-0.1.0-linux-x64.tar.gz` |
-| Linux ARM64 | `earthcraft-0.1.0-linux-arm64.tar.gz` |
-| Windows x86-64 | `earthcraft-0.1.0-windows-x64-portable.zip` |
-| Windows ARM64 | `earthcraft-0.1.0-windows-arm64-portable.zip` |
-| macOS Apple Silicon (ARM64) | `earthcraft-0.1.0-macos-arm64.dmg` containing `EarthCraft.app`; `earthcraft-0.1.0-macos-arm64-update.zip` for the updater |
+| Linux x86-64 | `linux-x64.tar.gz`, `linux-x64.deb`, `linux-x64.rpm`, `linux-x64.AppImage`, `linux-x64.AppImage.zsync`, `linux-x64.flatpak`, `linux-x64.snap` |
+| Linux ARM64 | `linux-arm64.tar.gz`, `linux-arm64.deb`, `linux-arm64.rpm`, `linux-arm64.AppImage`, `linux-arm64.AppImage.zsync`, `linux-arm64.flatpak`, `linux-arm64.snap` |
+| Windows x86-64 | `windows-x64-portable.zip`, `windows-x64.msi`, `windows-x64.exe` |
+| Windows ARM64 | `windows-arm64-portable.zip`, `windows-arm64.msi` |
+| FreeBSD x86-64 | `freebsd-x64.tar.gz` |
+| macOS Apple Silicon (ARM64) | `macos-arm64.dmg` containing `EarthCraft.app`; `macos-arm64-update.zip` for the updater |
 
-One `SHA256SUMS.txt` lists all six release archives. Preview artifacts retain
+One `SHA256SUMS.txt` lists all 22 release assets, including AppImage zsync metadata.
+Publication first verifies the exact asset set and every checksum; a missing format
+or unexpected build file prevents publication. Preview artifacts retain
 individual `.sha256` files; publication verifies and consolidates them.
 GitHub also provides its standard source-code archives. Linux builds run
-on Ubuntu 22.04; GTK 3 and a working graphics driver are runtime requirements.
+on Ubuntu 22.04, targeting glibc 2.35 or newer. Portable Linux archives require
+GTK 3 and a working graphics driver. AppImage bundles include GTK libraries and
+resources through linuxdeploy's GTK plugin. FreeBSD builds run in a FreeBSD 14.5
+VM and require GTK 3, libxkbcommon and a working graphics driver at runtime.
 macOS bundles target macOS 11 or newer and are ad-hoc signed, without a
 Developer ID certificate or notarization. The ARM64 build packages `EarthCraft.app`
 directly into a DMG. Packaging verifies its ARM64 Mach-O header, embeds the padded
 macOS icon, then signs and verifies the assembled app. Ad-hoc signing does not
 establish a trusted publisher or remove Gatekeeper prompts.
-Windows/Linux archives contain just the executable at their root. On macOS,
+Windows/Linux/FreeBSD portable archives contain just the executable at their root. On macOS,
 open the DMG and drag EarthCraft along the arrow onto the Applications shortcut.
 The window opens in icon view with the app on the left and Applications on the
 right. Only those two items are visible; Finder layout/background metadata stays
 hidden. There are no bundled
-READMEs, agent rules, contributor docs, changelogs or release text files. Build/package checks do not verify
+READMEs, agent rules, contributor docs or changelogs in portable downloads.
+Linux installer bundles include the MIT license. Build/package checks do not verify
 interactive runtime behavior: manually test downloads on the supported platforms
 before announcing them.
+
+
+## Installing native packages
+
+DEB and RPM packages install the app, desktop entry and icon through the system
+package manager, with GTK and other runtime dependencies declared. MSI packages
+install to Program Files and add a Start menu shortcut; they require administrator
+access and use separate upgrade identities for x64 and ARM64. MSI's numeric
+product version uses the major/minor/patch part of the release version. The x64
+standalone EXE is the same application binary as the portable ZIP.
+
+AppImage files are executable bundles; run `chmod +x earthcraft-*-linux-*.AppImage`
+and launch the file for your architecture. Matching `.zsync` files provide
+AppImage delta-update metadata. AppImage, Flatpak and Snap launchers select manual
+updates so the in-app updater cannot replace a bundled executable. MSI and
+system-package paths use the updater's existing managed-install detection.
+
+Install a Flatpak bundle with `flatpak install --user ./earthcraft-<version>-linux-<arch>.flatpak`
+and launch it with `flatpak run com.theri.earthcraft`. The bundle points to Flathub
+for its GNOME runtime. It permits network access, graphics and native file dialogs
+with host file access. Flatpak manages its application data separately; the bundle
+does not include the optional `espeak` narration executable.
+
+Snap bundles use strict confinement with the GNOME extension, network, home,
+removable-media and audio interfaces. Install with
+`sudo snap install --dangerous ./earthcraft-<version>-linux-<arch>.snap`.
+Access to removable media may require `sudo snap connect earthcraft:removable-media`.
+These files are sideloadable releases, not publication to Flathub or the Snap Store.
+
+The release matrix configures these packages; native startup, dialogs,
+installation, upgrade/uninstall and updater behavior must still be checked on
+actual target systems before platform support is announced.
 
 ## In-app updates
 
@@ -49,7 +89,7 @@ is downloaded until clicked. Clicking downloads, verifies GitHub's SHA-256 asset
 digest and installs that exact release; failures remain in the control's tooltip.
 Right-click a failed update to open the official release page.
 
-Windows/Linux portable builds replace the executable. macOS uses the updater ZIP
+Windows/Linux/FreeBSD portable builds replace the executable. macOS uses the updater ZIP
 and replaces the entire `EarthCraft.app` bundle; `codesign --verify --deep --strict`
 checks the extracted bundle before replacement. The existing DMG remains the
 first-install download. The ZIP contains the same ad-hoc signed bundle as the DMG;
@@ -76,7 +116,7 @@ other locations; `EARTHCRAFT_UPDATE_MODE=off` disables the startup check entirel
 Missing target assets hide the control; no periodic polling or prerelease opt-in is
 added. Older macOS releases without the updater ZIP cannot be installed in-app.
 
-Portable replacement/restart still requires native Windows/Linux validation before
+Portable replacement/restart still requires native Windows/Linux/FreeBSD validation before
 announcing support; packaging/unit checks alone do not verify that lifecycle.
 
 ## First launch on macOS (Gatekeeper)
@@ -101,8 +141,10 @@ system-wide is not required.
 
 Pull requests changing the release workflow, packaging code/tests, changelog
 configuration, macOS icon or this guide run
-five native architecture builds and upload preview artifacts without publishing
-a release.
+six native architecture builds, two Windows installer jobs and four Linux
+bundle jobs, and upload preview artifacts without publishing a release. Installer
+and bundle jobs reuse the binaries already built by the main matrix. WiX runs
+on an x64 Windows host even when packaging an ARM64 executable.
 After merge, the Actions page also offers a manual **Release** run with the same
 preview-only behavior. Inspect and test these artifacts before creating a version tag.
 Actions artifact names also include the workspace version, so their downloadable
@@ -117,7 +159,7 @@ its friendly platform name from the table above.
 2. From the reviewed commit, create and push the matching tag, for example
    `git tag v0.1.0` followed by `git push upstream v0.1.0`.
 3. The workflow requires the tag to equal `v` plus the workspace version.
-   All five native builds, application packaging and archive checksums must
+   All six native builds, all package formats and asset checksums must
    succeed before publication.
 4. Publication first creates a draft with GitHub-generated release notes, uploads the complete
    artifact set, then publishes it. Versions containing a prerelease suffix are
@@ -140,7 +182,13 @@ personal access token are needed.
 - Ensure hosted ARM64 runners (`ubuntu-22.04-arm`, `windows-11-arm`) and the
   macOS runners in the matrix are available to the repository. Jobs queued
   indefinitely require checking runner availability, billing and Actions policy.
-- Run the manual preview on the reviewed commit and verify all six archives,
+- Allow the `vmactions/freebsd-vm@v1` action and nested virtualization on the
+  Ubuntu host used for FreeBSD. That job installs Rust 1.95.0 inside the VM.
+- Linux package jobs download nFPM 2.47.0, linuxdeploy's maintained `continuous`
+  build and its GTK plugin. Windows installer jobs use WiX 5.0.2. Flatpak jobs
+  fetch the GNOME 49 runtime from Flathub; Snap jobs use Snapcraft with core22
+  and its GNOME extension. These are packaging tools, not Rust dependencies.
+- Run the manual preview on the reviewed commit and verify all 22 assets,
   their checksums and actual application startup on each platform. A preview
   never publishes. No release tag is needed for it.
 - Review generated release notes before tagging. Use a new matching version/tag;
@@ -179,7 +227,7 @@ To preview locally, install git-cliff 2.14.2 and run:
 
 ```sh
 git-cliff --config cliff.toml --output /tmp/earthcraft-CHANGELOG.md
-python3 -m unittest discover -s scripts -p 'test_package_release.py'
+python3 -m unittest discover -s scripts -p 'test_package_*.py'
 ```
 
 ## Local packaging
@@ -211,4 +259,25 @@ python3 -m venv /tmp/earthcraft-packaging
 rustup target add aarch64-apple-darwin
 MACOSX_DEPLOYMENT_TARGET=11.0 cargo build -p earthcraft --release --no-default-features --locked --target aarch64-apple-darwin
 /tmp/earthcraft-packaging/bin/python scripts/package_release.py package --version 0.1.0 --target aarch64-apple-darwin --binary target/aarch64-apple-darwin/release/earthcraft --output /tmp/earthcraft-release
+```
+
+### Additional native formats
+
+The base helper still creates the original portable archives. To add native Linux
+formats, install nFPM and linuxdeploy with its GTK plugin, then run:
+
+```sh
+python3 scripts/package_linux.py --version 0.1.0 --target x86_64-unknown-linux-gnu --binary target/release/earthcraft --output /tmp/earthcraft-release --formats deb rpm appimage
+```
+
+Flatpak and Snap use the same helper with `--formats flatpak` or `--formats snap`;
+install the matching runtime or Snapcraft first, as in the workflow. On Windows,
+install WiX 5.0.2 and run `scripts/package_windows.py` with the same arguments as
+the base helper. It adds MSI packages and the x64 standalone EXE. FreeBSD's base
+helper uses `--target x86_64-unknown-freebsd` after a native CPU-only build.
+
+Before consolidating checksum sidecars, validate a complete downloaded artifact set:
+
+```sh
+python3 scripts/package_release.py verify --version 0.1.0 --output /tmp/earthcraft-release
 ```

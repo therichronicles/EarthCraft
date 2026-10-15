@@ -18,9 +18,13 @@ pub(super) struct SelectedRelease {
     asset: ReleaseAsset,
 }
 fn platform_suffix() -> Option<&'static str> {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
+    platform_suffix_for(std::env::consts::OS, std::env::consts::ARCH)
+}
+fn platform_suffix_for(os: &str, architecture: &str) -> Option<&'static str> {
+    match (os, architecture) {
         ("linux", "x86_64") => Some("linux-x64.tar.gz"),
         ("linux", "aarch64") => Some("linux-arm64.tar.gz"),
+        ("freebsd", "x86_64") => Some("freebsd-x64.tar.gz"),
         ("windows", "x86_64") => Some("windows-x64-portable.zip"),
         ("windows", "aarch64") => Some("windows-arm64-portable.zip"),
         ("macos", "aarch64") => Some("macos-arm64-update.zip"),
@@ -306,6 +310,19 @@ mod tests {
             )
             .is_err()
         );
+    }
+    #[test]
+    fn added_native_targets_select_their_own_portable_archives() {
+        assert_eq!(platform_suffix_for("windows", "x86"), None);
+        assert_eq!(
+            platform_suffix_for("freebsd", "x86_64"),
+            Some("freebsd-x64.tar.gz")
+        );
+        assert_eq!(
+            platform_suffix_for("macos", "aarch64"),
+            Some("macos-arm64-update.zip")
+        );
+        assert_eq!(platform_suffix_for("macos", "x86_64"), None);
     }
     #[test]
     fn managed_locations_never_enable_binary_replacement() {

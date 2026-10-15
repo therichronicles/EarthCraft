@@ -6,8 +6,11 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release.yml'
-      - 'scripts/package_release.py'
-      - 'scripts/test_package_release.py'
+      - 'scripts/package_*.py'
+      - 'scripts/test_package_*.py'
+      - 'packaging/**'
+      - 'assets/icon.ico'
+      - 'assets/icon_256.png'
       - 'cliff.toml'
       - 'assets/macos/icon.icns'
       - 'assets/macos/dmg-background*.png'
@@ -40,7 +43,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: python scripts/package_release.py validate --tag "$RELEASE_TAG"
       - name: Test release packaging
-        run: python -m unittest discover -s scripts -p 'test_package_release.py'
+        run: python -m unittest discover -s scripts -p 'test_package_*.py'
       - name: Generate complete changelog
         uses: orhun/git-cliff-action@v4
         with:
@@ -92,7 +95,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Test release packaging on the native platform
-        run: python -m unittest discover -s scripts -p 'test_package_release.py'
+        run: python -m unittest discover -s scripts -p 'test_package_*.py'
       - name: Install Linux development libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libgtk-3-dev libxkbcommon-dev libwayland-dev libx11-dev
@@ -103,6 +106,35 @@ jobs:
         run: python -m pip install dmgbuild==1.6.7
       - name: Package application
         run: python scripts/package_release.py package --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/${{ matrix.executable }} --output dist
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        env:
+          NFPM_VERSION: '2.47.0'
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y desktop-file-utils appstream zsync rpm libgirepository1.0-dev librsvg2-dev
+          tools="$RUNNER_TEMP/earthcraft-packaging-tools"
+          mkdir -p "$tools"
+          arch=$(uname -m)
+          curl -fL --retry 3 -o "$tools/linuxdeploy" "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$arch.AppImage"
+          curl -fL --retry 3 -o "$tools/linuxdeploy-plugin-gtk.sh" https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          chmod +x "$tools/linuxdeploy" "$tools/linuxdeploy-plugin-gtk.sh"
+          curl -fL --retry 3 -o "$tools/nfpm.deb" "https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION/nfpm_${NFPM_VERSION}_$(dpkg --print-architecture).deb"
+          sudo dpkg -i "$tools/nfpm.deb"
+          echo "$tools" >> "$GITHUB_PATH"
+      - name: Package Linux installers and AppImage
+        if: runner.os == 'Linux'
+        run: python scripts/package_linux.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/earthcraft --output dist --formats deb rpm appimage
+      - name: Inspect Linux package metadata
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          desktop-file-validate packaging/earthcraft.desktop
+          appstreamcli validate --no-net packaging/earthcraft.metainfo.xml
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb
+          rpm -qip dist/*.rpm
+          rpm -qlp dist/*.rpm
       - uses: actions/upload-artifact@v7
         with:
           name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
@@ -110,19 +142,152 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  windows-installers:
+    name: Windows ${{ matrix.arch }} / MSI
+    needs: [version, build]
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          path: downloaded
+      - name: Extract the existing native executable
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: Expand-Archive -LiteralPath "downloaded/earthcraft-${env:VERSION}-windows-${env:ARCH}-portable.zip" -DestinationPath payload
+      - name: Install Windows installer tooling
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Package MSI and standalone executable
+        run: python scripts/package_windows.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary payload/earthcraft.exe --output dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: earthcraft-${{ needs.version.outputs.version }}-windows-${{ matrix.arch }}-installer
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  linux-bundles:
+    name: Linux ${{ matrix.arch }} / ${{ matrix.format }}
+    needs: [version, build]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        format: [flatpak, snap]
+        include:
+          - arch: x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - arch: arm64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          path: downloaded
+      - name: Extract the existing native binary
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mkdir payload
+          tar -xzf "downloaded/earthcraft-$VERSION-linux-$ARCH.tar.gz" -C payload earthcraft
+      - name: Install Flatpak runtime
+        if: matrix.format == 'flatpak'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.gnome.Platform//49
+      - name: Package Flatpak
+        if: matrix.format == 'flatpak'
+        run: python scripts/package_linux.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary payload/earthcraft --output dist --formats flatpak
+      - name: Install Snapcraft
+        if: matrix.format == 'snap'
+        run: sudo snap install snapcraft --classic
+      - name: Package Snap
+        if: matrix.format == 'snap'
+        run: sudo env "PATH=$PATH" python scripts/package_linux.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary payload/earthcraft --output dist --formats snap
+      - uses: actions/upload-artifact@v7
+        with:
+          name: earthcraft-${{ needs.version.outputs.version }}-linux-${{ matrix.arch }}-${{ matrix.format }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  freebsd:
+    name: FreeBSD x86-64
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and package in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: '14.5'
+          cpu: 4
+          mem: 12288
+          prepare: |
+            pkg install -y curl git pkgconf python312 gtk3 libxkbcommon wayland libX11 libXcursor libXrandr libXi libxcb mesa-libs vulkan-loader
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.95.0
+          run: |
+            set -eu
+            . "$HOME/.cargo/env"
+            export CARGO_TARGET_DIR=/var/tmp/earthcraft-target CARGO_BUILD_JOBS=4
+            cargo build -p earthcraft --release --no-default-features --locked --target x86_64-unknown-freebsd
+            python3.12 -m unittest discover -s scripts -p 'test_package_*.py'
+            python3.12 scripts/package_release.py package --version "$(python3.12 scripts/package_release.py validate)" --target x86_64-unknown-freebsd --binary /var/tmp/earthcraft-target/x86_64-unknown-freebsd/release/earthcraft --output dist
+            ldd /var/tmp/earthcraft-target/x86_64-unknown-freebsd/release/earthcraft
+      - uses: actions/upload-artifact@v7
+        with:
+          name: earthcraft-${{ needs.version.outputs.version }}-x86_64-unknown-freebsd
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     name: Publish GitHub release
-    needs: [version, build]
+    needs: [version, build, windows-installers, linux-bundles, freebsd]
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - uses: actions/download-artifact@v8
         with:
           pattern: earthcraft-${{ needs.version.outputs.version }}-*
           path: dist
           merge-multiple: true
+      - name: Require the complete native release asset set
+        run: python scripts/package_release.py verify --version ${{ needs.version.outputs.version }} --output dist
       - name: Verify archives and assemble release checksums
         working-directory: dist
         run: |
