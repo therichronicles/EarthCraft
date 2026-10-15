@@ -1,8 +1,10 @@
 """Offline checks for native package metadata and the complete release contract."""
 
 from pathlib import Path
+import hashlib
 import tempfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 
 import package_linux as linux
@@ -11,6 +13,35 @@ import package_windows as windows
 
 
 class NativePackagingTests(unittest.TestCase):
+    def test_appimage_collects_zsync_from_tool_working_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "AppDir"
+            directory.mkdir()
+            output = root / "dist"
+            output.mkdir()
+            archive = output / "earthcraft-0.1.0-linux-x64.AppImage"
+            delta = archive.with_suffix(".AppImage.zsync")
+            content = b"zsync metadata fixture"
+
+            def linuxdeploy(command, **options):
+                if "--output" in command:
+                    destination = Path(options["env"]["LDAI_OUTPUT"])
+                    destination.write_bytes(b"AppImage fixture")
+                    # Model zsyncmake's basename output in the tool's cwd.
+                    working_directory = Path(options.get("cwd", root))
+                    (working_directory / (destination.name + ".zsync")).write_bytes(content)
+
+            with mock.patch.object(linux.subprocess, "run", side_effect=linuxdeploy):
+                linux.appimage(directory, archive, "x86_64", root / "source")
+            self.assertEqual(delta.read_bytes(), content)
+            self.assertEqual(delta.with_suffix(".zsync.sha256").read_text(),
+                             f"{hashlib.sha256(content).hexdigest()}  {delta.name}\n")
+            delta.unlink()
+            with mock.patch.object(linux.subprocess, "run"):
+                with self.assertRaisesRegex(ValueError, "did not create its zsync"):
+                    linux.appimage(directory, archive, "x86_64", root / "source")
+
     def test_complete_asset_set_requires_each_format_and_valid_checksums(self):
         version = release.workspace_version()
         expected = release.expected_assets(version)

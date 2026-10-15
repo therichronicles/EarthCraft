@@ -87,7 +87,10 @@ done
 exec "$APPDIR/usr/bin/earthcraft" "$@"
 ''', encoding="utf-8")
     launcher.chmod(0o755)
-    subprocess.run(["linuxdeploy", "--appdir", str(directory), "--output", "appimage"], check=True, env=env)
+    # zsyncmake writes its sidecar in the working directory, even when the
+    # AppImage destination is absolute. Keep both release files together.
+    subprocess.run(["linuxdeploy", "--appdir", str(directory), "--output", "appimage"],
+                   check=True, env=env, cwd=archive.parent)
     delta = archive.with_suffix(archive.suffix + ".zsync")
     if not delta.is_file():
         raise ValueError("AppImage packaging did not create its zsync update metadata")
