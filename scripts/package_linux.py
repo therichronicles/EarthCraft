@@ -108,7 +108,7 @@ def flatpak(archive, architecture, temporary):
     repository = temporary / "flatpak-repository"
     # The maintained builder supports GNOME 49's appstreamcli compose command;
     # Ubuntu 22.04's native builder still requires the removed appstream-compose.
-    subprocess.run(["flatpak", "run", "org.flatpak.Builder", "--user", "--force-clean",
+    subprocess.run(["flatpak", "run", "org.flatpak.Builder", "--system", "--force-clean",
                     f"--state-dir={temporary / 'flatpak-state'}", f"--arch={architecture}",
                     f"--repo={repository}", str(temporary / "flatpak-build"), str(manifest_path)], check=True)
     subprocess.run(["flatpak", "build-bundle", f"--arch={architecture}",

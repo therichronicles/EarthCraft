@@ -217,6 +217,7 @@ class NativePackagingTests(unittest.TestCase):
                 def flatpak(command, **options):
                     commands.append(command)
                     if command[:3] == ["flatpak", "run", "org.flatpak.Builder"]:
+                        self.assertIn("--system", command)
                         self.assertIn(f"--arch={architecture}", command)
                         self.assertIn(f"--state-dir={root / 'flatpak-state'}", command)
                         manifest = json.loads(Path(command[-1]).read_text())

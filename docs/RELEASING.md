@@ -288,7 +288,8 @@ Flatpak and Snap use the same helper with `--formats flatpak` or `--formats snap
 without `--binary`. They build `git archive HEAD`, so commit source changes before
 packaging. Flatpak vendors the locked Cargo dependencies before invoking
 flatpak-builder offline with `packaging/flatpak.json`. Install `org.flatpak.Builder`,
-its SDK/runtime and the Rust extension as in the workflow. Snap uses `packaging/snapcraft.json`, a
+its SDK/runtime and the Rust extension into the system Flatpak installation as
+in the workflow, so the builder sandbox can discover the SDK. Snap uses `packaging/snapcraft.json`, a
 JSON representation of snapcraft.yaml, and the official Rust plugin with locked,
 CPU-only builds. The template omits `version`: the helper injects the workspace
 version supplied by the release workflow, so `Cargo.toml` is the single source.
