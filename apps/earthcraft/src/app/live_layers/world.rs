@@ -160,11 +160,15 @@ mod tests {
                 pixels_per_point: 1.0,
                 traffic_width_px: 16,
                 traffic_height_px: 16,
+                weather_width_px: 16,
+                weather_height_px: 16,
             },
             roads: None,
             vessels: Some(vec![ship; 100].into()),
             satellites: None,
             traffic: None,
+            cloud: None,
+            radar: None,
             unix_secs: 1_700_000_000.0,
         };
         let geometry = LivePreparer::default().prepare(input);

@@ -83,12 +83,14 @@ bounded file worker.
 
 ## Live layers and the hidden illustration
 
-Roads, AIS vessels, predicted satellite subpoints and traffic rasters use a
+Cloud/radar imagery, roads, AIS vessels, predicted satellite subpoints and traffic rasters use a
 render-owned preparer and coalesced worker: one active request, one replaceable
 pending request and one completed result. Inputs hold immutable `Arc` snapshots.
 Moving raster frames carry geometry prepared for their camera; stationary data
 refreshes use the same preparer off the UI thread. The app rejects geometry with
 an incompatible camera, rectangle, DPI, scale, data identity or orbital time tick.
+Weather and traffic rasters project parallel rows with Rayon; render owns their bounded
+moving/settled sizing policy. Only matching displayed-view results are uploaded.
 Roads/vessels/traffic reuse their prepared components when only satellite time
 changes. Screen projection uses the selected Earth's surface; road hover tests
 all visible fragments after a cheap prepared-bounds rejection.
@@ -348,8 +350,8 @@ support a frontend-provided legacy sidecar resolver; native path I/O is separate
 OS URL opening, speech commands and file dialogs remain desktop responsibilities.
 This extraction prepares reusable logic; it does not make Tokio, SQLite, native
 file services or GPU readback compile for WebAssembly. A web frontend still needs
-browser transport/storage/execution adapters. Weather projection and body mesh
-construction retain their current frontend scheduling; this PR does not add jobs.
+browser transport/storage/execution adapters. Weather projection uses the bounded
+render coordinator and coalesced live-layer worker; body meshes retain frontend scheduling.
 
 ## Sidebar panels
 

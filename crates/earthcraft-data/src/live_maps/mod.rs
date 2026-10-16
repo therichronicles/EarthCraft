@@ -4,7 +4,7 @@ use image::RgbaImage;
 mod download;
 use download::{download_clouds, download_radar};
 use std::{
-    sync::mpsc,
+    sync::{Arc, mpsc},
     time::{Duration, Instant},
 };
 const CLOUD_INTERVAL: Duration = Duration::from_secs(3 * 60 * 60);
@@ -18,8 +18,8 @@ struct RadarFrame {
 
 #[derive(Default)]
 pub struct LiveMaps {
-    cloud: Option<RgbaImage>,
-    radar: Option<RgbaImage>,
+    cloud: Option<Arc<RgbaImage>>,
+    radar: Option<Arc<RgbaImage>>,
     cloud_rx: Option<mpsc::Receiver<Result<RgbaImage, crate::Error>>>,
     radar_rx: Option<mpsc::Receiver<Result<RadarFrame, crate::Error>>>,
     cloud_attempt: Option<Instant>,
@@ -41,7 +41,7 @@ impl LiveMaps {
         if let Some(rx) = &self.cloud_rx {
             match rx.try_recv() {
                 Ok(Ok(image)) => {
-                    self.cloud = Some(image);
+                    self.cloud = Some(Arc::new(image));
                     self.cloud_error = None;
                     self.cloud_rx = None;
                     self.generation += 1;
@@ -62,7 +62,7 @@ impl LiveMaps {
             match rx.try_recv() {
                 Ok(Ok(frame)) => {
                     self.radar_frame_time = Some(frame.time);
-                    self.radar = Some(frame.image);
+                    self.radar = Some(Arc::new(frame.image));
                     self.radar_error = None;
                     self.radar_rx = None;
                     self.generation += 1;
@@ -118,10 +118,16 @@ impl LiveMaps {
     }
 
     pub fn cloud(&self) -> Option<&RgbaImage> {
-        self.cloud.as_ref()
+        self.cloud.as_deref()
     }
     pub fn radar(&self) -> Option<&RgbaImage> {
-        self.radar.as_ref()
+        self.radar.as_deref()
+    }
+    pub fn shared_cloud(&self) -> Option<Arc<RgbaImage>> {
+        self.cloud.clone()
+    }
+    pub fn shared_radar(&self) -> Option<Arc<RgbaImage>> {
+        self.radar.clone()
     }
     pub fn generation(&self) -> u64 {
         self.generation
