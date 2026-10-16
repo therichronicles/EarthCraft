@@ -337,6 +337,8 @@ impl App {
             ring_drag: false,
             runtime,
         };
+        app.file_jobs
+            .set_texture_side_limit(cc.egui_ctx.input(|input| input.max_texture_side));
         app.restore_kml_session();
         if let Some(error) = &app.update_restart.error {
             app.status = error.clone();
@@ -374,6 +376,8 @@ impl eframe::App for App {
         earthcraft_data::profiling::flush();
     }
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.file_jobs
+            .set_texture_side_limit(ctx.input(|input| input.max_texture_side));
         if self.fonts.poll(
             ctx,
             &self.settings.appearance.ui_font,
