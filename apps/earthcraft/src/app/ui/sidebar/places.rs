@@ -26,7 +26,6 @@ impl App {
             }
         });
         let files = files_footer(ui, lg, &mut self.kml_path, &self.settings.kml_dir);
-        self.kml_drop_rect = files.drop_rect;
         open_typed |= files.open_typed;
         let details_height = if self.place_selection.is_some() {
             PLACES_DETAILS_HEIGHT_POINTS
@@ -70,7 +69,6 @@ const FILES_FOOTER_CLEARANCE_POINTS: f32 = 12.0;
 const FILES_FOOTER_HEIGHT_LINES: f32 = 11.0;
 const FILES_MAX_HEIGHT_FRACTION: f32 = 0.5;
 struct FileControls {
-    drop_rect: egui::Rect,
     open_typed: bool,
     clear: Option<egui::Response>,
 }
@@ -83,7 +81,6 @@ fn files_footer(
     folder: &str,
 ) -> FileControls {
     let mut controls = FileControls {
-        drop_rect: egui::Rect::NOTHING,
         open_typed: false,
         clear: None,
     };
@@ -113,7 +110,7 @@ fn files_footer(
                             } else {
                                 (Color32::from_gray(90), Color32::from_black_alpha(40))
                             };
-                            let zone = egui::Frame::NONE
+                            egui::Frame::NONE
                                 .fill(fill)
                                 .stroke(Stroke::new(
                                     if hovering_file { 2.0_f32 } else { 1.0_f32 },
@@ -131,7 +128,6 @@ fn files_footer(
                                         controls.open_typed = true;
                                     }
                                 });
-                            controls.drop_rect = zone.response.rect.intersect(ui.clip_rect());
                             ui.weak(lg.format(
                                 "export-folder-label",
                                 &[("path", short_folder(folder).into())],
@@ -165,10 +161,7 @@ mod tests {
                             ..Default::default()
                         },
                         |ui| {
-                            let clip = ui.clip_rect();
                             let files = files_footer(ui, lang, &mut path, "Documents");
-                            assert!(files.drop_rect.is_positive(), "KML/KMZ must start expanded");
-                            assert!(clip.contains_rect(files.drop_rect));
                             if height >= 600.0 {
                                 let clear = files.clear.as_ref().expect("expanded file controls");
                                 assert!(

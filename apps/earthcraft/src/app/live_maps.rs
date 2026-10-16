@@ -2,6 +2,10 @@
 use earthcraft_core::{camera::Basis, language::Lang};
 use eframe::egui::{self, Color32, ColorImage, Pos2, Rect, TextureHandle};
 use std::time::Duration;
+const MIN_PROJECTION_WIDTH_PX: usize = 160;
+const MOVING_PROJECTION_WIDTH_PX: usize = 480;
+const MAX_PROJECTION_SIDE_PX: usize = 960;
+
 #[derive(Default)]
 pub(super) struct LiveMaps {
     service: earthcraft_data::live_maps::LiveMaps,
@@ -9,7 +13,7 @@ pub(super) struct LiveMaps {
     projected_for: Option<(Basis, usize, usize, bool, bool, u64)>,
 }
 impl LiveMaps {
-    pub fn update(
+    pub(super) fn update(
         &mut self,
         ctx: &egui::Context,
         runtime: &earthcraft_data::runtime::ServiceRuntime,
@@ -23,7 +27,7 @@ impl LiveMaps {
             ctx.request_repaint_after(Duration::from_secs(60));
         }
     }
-    pub fn draw(
+    pub(super) fn draw(
         &mut self,
         painter: &egui::Painter,
         basis: &Basis,
@@ -38,14 +42,14 @@ impl LiveMaps {
         }
         // Projection is cached and updated only when camera or imagery changes.
         let max_width = if painter.ctx().input(|i| i.pointer.any_down()) {
-            480
+            MOVING_PROJECTION_WIDTH_PX
         } else {
-            960
+            MAX_PROJECTION_SIDE_PX
         };
-        let width =
-            ((rect.width() * painter.ctx().pixels_per_point()) as usize).clamp(160, max_width);
-        let height =
-            ((width as f32 * rect.height() / rect.width().max(1.0)) as usize).clamp(1, 960);
+        let width = ((rect.width() * painter.ctx().pixels_per_point()) as usize)
+            .clamp(MIN_PROJECTION_WIDTH_PX, max_width);
+        let height = ((width as f32 * rect.height() / rect.width().max(1.0)) as usize)
+            .clamp(1, MAX_PROJECTION_SIDE_PX);
         let key = (
             *basis,
             width,
@@ -93,7 +97,7 @@ impl LiveMaps {
         }
     }
 
-    pub fn status(&self, clouds: bool, radar: bool, lang: Lang) -> String {
+    pub(super) fn status(&self, clouds: bool, radar: bool, lang: Lang) -> String {
         self.service.status(clouds, radar, lang)
     }
 }

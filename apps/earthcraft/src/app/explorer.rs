@@ -11,7 +11,7 @@ use std::{process::Command, sync::Arc};
 
 #[derive(Default)]
 pub(super) struct Explorer {
-    pub open: bool,
+    pub(super) open: bool,
     name: String,
     image_path: String,
     sky_path: String,
@@ -20,17 +20,17 @@ pub(super) struct Explorer {
     pending: bool,
     activate_on_completion: bool,
     moon_loading: bool,
-    pub viewer: Option<TextureHandle>,
-    pub active: Body,
+    pub(super) viewer: Option<TextureHandle>,
+    pub(super) active: Body,
     moon: Option<TextureHandle>,
-    pub sky: Option<TextureHandle>,
+    pub(super) sky: Option<TextureHandle>,
     pub(super) message: String,
     tour_text: String,
     generated_tour_text: String,
 }
 
 impl Explorer {
-    pub fn choose(&mut self, body: Body, jobs: &FileJobs) {
+    pub(super) fn choose(&mut self, body: Body, jobs: &FileJobs) {
         self.active = body;
         self.activate_on_completion = false;
         if body == Body::Moon && self.moon.is_none() && !self.moon_loading {
@@ -46,7 +46,7 @@ impl Explorer {
     pub(super) fn has_custom_document(&self) -> bool {
         self.viewer.is_some()
     }
-    pub fn active_texture(&self) -> Option<&TextureHandle> {
+    pub(super) fn active_texture(&self) -> Option<&TextureHandle> {
         match self.active {
             Body::Moon => self.moon.as_ref(),
             Body::Custom => self.viewer.as_ref(),

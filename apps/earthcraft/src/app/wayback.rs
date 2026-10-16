@@ -6,6 +6,10 @@ use earthcraft_data::{
 };
 use eframe::egui;
 use std::sync::mpsc;
+const UNIX_EPOCH_YEAR: i32 = 1970;
+const GREGORIAN_YEAR_SECS: f64 = 31_556_952.0;
+const DEFAULT_RELEASE_AGE_YEARS: i32 = 5;
+
 impl App {
     pub(super) fn ensure_wayback(&mut self, ctx: &egui::Context) {
         if self.provider != Provider::Wayback || self.wayback_started {
@@ -29,8 +33,8 @@ impl App {
                 self.wayback_rx = None;
                 set_wayback_releases(list.clone());
                 // default: the latest release that is at least ~5 years old, so the difference is visible
-                let year = 1970 + (now_unix() / 31_556_952.0) as i32;
-                let limit = format!("{}-12-31", year - 5);
+                let year = UNIX_EPOCH_YEAR + (now_unix() / GREGORIAN_YEAR_SECS) as i32;
+                let limit = format!("{}-12-31", year - DEFAULT_RELEASE_AGE_YEARS);
                 self.wayback_idx = list.iter().position(|r| r.date <= limit).unwrap_or(0);
                 self.wayback_list = list;
                 self.last_state = 0;

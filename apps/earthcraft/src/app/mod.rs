@@ -13,7 +13,7 @@ use earthcraft_data::{
     tiles::{Provider, TileCache, TileWarmup},
     wayback::WaybackRelease,
 };
-use eframe::egui::{self, Rect};
+use eframe::egui;
 use std::{
     sync::{Arc, Mutex, mpsc},
     time::{Duration, Instant},
@@ -23,6 +23,7 @@ mod controllers;
 mod explorer;
 mod files;
 mod flat_earth;
+const IMAGERY_REPAINT_INTERVAL: Duration = Duration::from_secs(30);
 const SKY_CLOCK_REPAINT_INTERVAL: Duration = Duration::from_secs(30);
 mod fonts;
 mod frame_timing;
@@ -163,7 +164,6 @@ pub(crate) struct App {
     sugg_sent: String,
     sugg_rx: Option<mpsc::Receiver<SuggestionResponse>>,
 
-    kml_drop_rect: Rect,
     ring_drag: bool,
 }
 
@@ -333,7 +333,6 @@ impl App {
             sugg_last_edit: Instant::now(),
             sugg_sent: String::new(),
             sugg_rx: None,
-            kml_drop_rect: Rect::NOTHING,
             ring_drag: false,
             runtime,
         };
@@ -442,7 +441,7 @@ impl eframe::App for App {
         if earth
             && (self.show_vessels || self.show_satellites || self.show_roads || self.show_traffic)
         {
-            ctx.request_repaint_after(Duration::from_secs(30));
+            ctx.request_repaint_after(IMAGERY_REPAINT_INTERVAL);
         }
         self.poll_files(ctx);
         self.poll_update_restart(ctx);
