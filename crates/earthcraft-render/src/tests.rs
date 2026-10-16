@@ -330,3 +330,30 @@ fn celestial_backdrop_changes_only_sky_and_preserves_tile_priorities() {
     }
     assert!(changed > 100);
 }
+
+#[test]
+fn pending_and_absent_tiles_share_coarse_then_center_first_priority() {
+    let case = &batch_references()[0];
+    let cfg = batch_reference_config(case.provider);
+    let basis = case.cam.basis(case.width as f64 / case.height as f64);
+    let (_, _, pending) =
+        render_pixels_tracked(case.width, case.height, &basis, &cfg, &|_| Lookup::Pending);
+    let (pixels, mut distances, absent) =
+        render_pixels_tracked(case.width, case.height, &basis, &cfg, &|_| Lookup::Absent);
+    distances.sort_by(|a, b| {
+        unkey(a.0)
+            .1
+            .cmp(&unkey(b.0).1)
+            .then(a.1.total_cmp(&b.1))
+            .then(a.0.cmp(&b.0))
+    });
+    let expected: Vec<_> = distances.iter().map(|entry| entry.0).collect();
+    assert_eq!(pending, expected);
+    assert_eq!(absent, expected);
+    let frame = RenderedView {
+        pixels,
+        waiting: pending,
+        requests: expected.iter().rev().copied().collect(),
+    };
+    assert_eq!(frame.required_tiles(), expected);
+}
