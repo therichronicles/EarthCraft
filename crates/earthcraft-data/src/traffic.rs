@@ -25,10 +25,7 @@ impl TrafficTiles {
         let tx = ((lon + 180.0) / 360.0 * scale).rem_euclid(scale);
         let lat_r = lat.to_radians();
         let ty = (1.0 - lat_r.tan().asinh() / std::f64::consts::PI) * 0.5 * scale;
-        let mut dx = tx - self.left_x as f64;
-        if dx < 0.0 {
-            dx += scale;
-        }
+        let dx = (tx - self.left_x as f64).rem_euclid(scale);
         if dx >= 3.0 || !(0.0..3.0).contains(&(ty - self.top_y as f64)) {
             return None;
         }
@@ -245,6 +242,22 @@ async fn download(zoom: u32, x: i64, y: i64, key: String) -> Result<TrafficTiles
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn west_column_wraps_across_positive_and_negative_dateline() {
+        let tiles = TrafficTiles {
+            image: RgbaImage::from_fn(768, 768, |x, _| {
+                image::Rgba([(x / 256 + 1) as u8, 0, 0, 255])
+            }),
+            zoom: 2,
+            left_x: -1,
+            top_y: 1,
+            loaded: Instant::now(),
+        };
+        assert_eq!(tiles.sample(0.0, 179.0), Some([1, 0, 0, 255]));
+        assert_eq!(tiles.sample(0.0, -179.0), Some([2, 0, 0, 255]));
+        assert_eq!(tiles.sample(0.0, -89.0), Some([3, 0, 0, 255]));
+        assert_eq!(tiles.sample(0.0, 1.0), None);
+    }
     #[test]
     fn mercator_center_and_wrap() {
         assert_eq!(center_tile(0.0, 0.0, 2), (2, 2));
