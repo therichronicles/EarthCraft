@@ -260,3 +260,47 @@ fn frame_preparation_runs_off_ui_and_is_published_with_its_pixels() {
     let frame = worker.take_completed(7).unwrap();
     assert_eq!(frame.prepared, (25.0, frame.pixels.clone()));
 }
+
+#[test]
+fn render_and_prepare_panics_wake_the_ui_and_allow_the_next_frame() {
+    for panic_in_prepare in [false, true] {
+        let (wake, wakes) = mpsc::channel();
+        let mut first_render = true;
+        let mut first_prepare = true;
+        let worker = RenderWorker::with_prepare(
+            move |_, mut buffer| {
+                if !panic_in_prepare && first_render {
+                    first_render = false;
+                    panic!("injected raster failure");
+                }
+                buffer.resize(64 * 48 * 4, 7);
+                crate::RenderedView {
+                    pixels: buffer,
+                    waiting: vec![],
+                    requests: vec![],
+                }
+            },
+            move || {
+                let _ = wake.send(());
+            },
+            |_| {},
+            move |_, _| {
+                if panic_in_prepare && first_prepare {
+                    first_prepare = false;
+                    panic!("injected prepare failure");
+                }
+            },
+        )
+        .unwrap();
+        worker.submit(request(0.0, 1));
+        wakes.recv_timeout(TEST_TIMEOUT).unwrap();
+        assert!(worker.is_idle());
+        assert!(worker.take_error().unwrap().contains("injected"));
+        assert!(worker.take_error().is_none());
+        assert!(worker.take_completed(1).is_none());
+        worker.submit(request(1.0, 1));
+        wakes.recv_timeout(TEST_TIMEOUT).unwrap();
+        assert!(worker.is_idle());
+        assert!(worker.take_completed(1).is_some());
+    }
+}

@@ -214,6 +214,9 @@ impl App {
     }
 
     pub(super) fn poll_render(&mut self, presentation: u64, ctx: &egui::Context) {
+        if let Some(error) = self.renderer.worker.take_error() {
+            self.status = error;
+        }
         let Some(frame) = self.renderer.worker.take_completed(presentation) else {
             return;
         };
