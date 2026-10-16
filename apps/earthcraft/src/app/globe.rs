@@ -23,6 +23,7 @@ const OVERVIEW_WARMUP_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 impl App {
     pub(super) fn globe_view(&mut self, ui: &mut egui::Ui) {
+        let earth = self.explorer.active == earthcraft_core::body::Body::Earth;
         let lg = self.lang;
         let viewport = ui.available_rect_before_wrap();
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
@@ -171,7 +172,7 @@ impl App {
         let presentation = keys.presentation;
         // Keep the displayed view stable while the sidebar changes the viewport.
         // A running job may finish, but publication/submission resume only at rest.
-        if !self.sidebar_animating {
+        if earth && !self.sidebar_animating {
             self.poll_render(presentation, ui);
         }
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
@@ -223,17 +224,17 @@ impl App {
             ui.request_repaint_after(TILE_REDRAW_INTERVAL);
             need = false;
         }
-        if need && !self.sidebar_animating {
+        if earth && need && !self.sidebar_animating {
             self.request_render(w, h, render_aspect, presentation, viewport, ppp);
             self.last_state = state;
             self.last_gen = generation;
             self.last_render = Instant::now();
         }
-        if state == self.last_state && self.renderer.is_idle() {
+        if earth && state == self.last_state && self.renderer.is_idle() {
             self.renderer
                 .refill_requests(&self.cache, generation != self.last_gen, ui);
         }
-        if !self.sidebar_animating {
+        if earth && !self.sidebar_animating {
             self.last_gen = generation;
         }
         if !idle {
@@ -241,7 +242,8 @@ impl App {
         }
         // The frame worker admits visible tiles before becoming idle. Speculative
         // work waits for it, and pauses during interaction/closer zoom/other layers.
-        if idle
+        if earth
+            && idle
             && self.renderer.is_idle()
             && self.provider == Provider::Satellite
             && self.cam.alt >= OVERVIEW_WARMUP_ALTITUDE_KM

@@ -337,3 +337,24 @@ fn configured_budgets_reach_both_cache_implementations() {
         Some(budgets.decoded_bytes as u64)
     );
 }
+
+#[test]
+fn paused_admission_retires_queued_overviews_and_preserves_active_downloads() {
+    let (cache, _rx) = test_cache(4096);
+    let active = make_key(Provider::Satellite, 0, 0, 0, 0);
+    let queued = make_key(Provider::Satellite, 1, 0, 0, 0);
+    assert!(cache.request(active));
+    assert!(cache.request(queued));
+    assert_eq!(cache.next_job().unwrap().0, active);
+    assert!(cache.set_requests_enabled(false));
+    assert_eq!(cache.inflight(), 1);
+    assert!(cache.next_job().is_none());
+    cache.prioritize_view(&[queued]);
+    assert_eq!(cache.inflight(), 1);
+    assert!(!cache.request(queued));
+    cache.complete(active, Ok(tiny_tile(7)));
+    assert!(matches!(cache.lookup(active), Lookup::Ready(_)));
+    assert_eq!(cache.inflight(), 0);
+    assert!(cache.set_requests_enabled(true));
+    assert!(cache.request(queued));
+}

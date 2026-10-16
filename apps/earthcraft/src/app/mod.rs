@@ -408,6 +408,10 @@ impl eframe::App for App {
         // Independent realtime layers, loaded only for the globe while enabled.
         let earth =
             self.explorer.active == earthcraft_core::body::Body::Earth && !self.flat_earth.open;
+        if self.cache.set_requests_enabled(earth) && earth {
+            self.last_state = 0;
+            self.last_gen = u64::MAX;
+        }
         let vessel_wake = ctx.clone();
         self.live_vessels
             .update(&self.runtime, earth && self.show_vessels, move || {
