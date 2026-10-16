@@ -25,6 +25,9 @@ impl App {
     pub(super) fn globe_view(&mut self, ui: &mut egui::Ui) {
         let lg = self.lang;
         let viewport = ui.available_rect_before_wrap();
+        if !viewport.is_finite() || viewport.width() <= 0.0 || viewport.height() <= 0.0 {
+            return;
+        }
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
         let sense = if self.sidebar_animating {
             Sense::hover()
@@ -150,7 +153,9 @@ impl App {
         // ── rendering
         let idle = self.last_interact.elapsed() > IDLE_RENDER_DELAY && !resp.dragged();
         let render_aspect = (viewport.width() / viewport.height()) as f64;
-        let (w, h) = earthcraft_render::view::raster_size(viewport.size(), ppp, idle);
+        let Some((w, h)) = earthcraft_render::view::raster_size(viewport.size(), ppp, idle) else {
+            return;
+        };
         let keys = earthcraft_render::view::RasterView {
             camera: self.cam,
             model: self.active_earth_model(),
@@ -173,6 +178,9 @@ impl App {
         // A running job may finish, but publication/submission resume only at rest.
         if !self.sidebar_animating {
             self.poll_render(presentation, ui);
+        }
+        if !viewport.is_finite() || viewport.width() <= 0.0 || viewport.height() <= 0.0 {
+            return;
         }
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
 
