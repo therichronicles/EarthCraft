@@ -596,3 +596,6 @@ sky-short-credit = Sky: NASA SVS · Gaia DR2 (ESA/Gaia/DPAC)
 sky-combined-credit = { $map }
     { $sky }
 sky-software-credits = Celestial transform software licenses
+
+traffic-partial-error = Traffic incomplete: { $count } tiles failed to load
+live-radar-partial-error = Radar incomplete: { $count } tiles failed to load

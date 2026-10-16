@@ -94,6 +94,9 @@ pub(super) async fn download_radar() -> Result<RadarFrame, crate::Error> {
         let Ok(Some((x, y, tile))) = result else {
             continue;
         };
+        if tile.width() != TILE_SIZE || tile.height() != TILE_SIZE {
+            continue;
+        }
         accepted += 1;
         for (px, py, c) in tile.enumerate_pixels() {
             if px >= TILE_SIZE || py >= TILE_SIZE {
@@ -110,7 +113,11 @@ pub(super) async fn download_radar() -> Result<RadarFrame, crate::Error> {
     if accepted == 0 {
         return Err("RainViewer radar tiles unavailable (check network/coverage)".into());
     }
-    Ok(RadarFrame { image, time })
+    Ok(RadarFrame {
+        image,
+        time,
+        failed_tiles: n * n - accepted,
+    })
 }
 
 // The API only delivers Universal Blue as of 2026. Map its RGB palette to an

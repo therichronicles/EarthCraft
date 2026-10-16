@@ -96,6 +96,7 @@ fn preparer_reuses_components_and_invalidates_changes_to_view_data_and_time() {
         left_x: 1,
         top_y: 1,
         loaded: std::time::Instant::now(),
+        failed_tiles: 0,
     }));
     let mut preparer = LivePreparer::default();
     let first = preparer.prepare(request.clone());

@@ -596,3 +596,6 @@ sky-short-credit = Céu: NASA SVS · Gaia DR2 (ESA/Gaia/DPAC)
 sky-combined-credit = { $map }
     { $sky }
 sky-software-credits = Licenças do software de transformação celeste
+
+traffic-partial-error = Tráfego incompleto: falha ao carregar { $count } blocos
+live-radar-partial-error = Radar incompleto: falha ao carregar { $count } blocos
