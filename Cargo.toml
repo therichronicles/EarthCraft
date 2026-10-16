@@ -15,6 +15,7 @@ rust-version = "1.95"
 license = "MIT"
 
 [workspace.dependencies]
+syn = { version = "2.0.119", features = ["full", "visit"] }
 earthcraft-core = { path = "crates/earthcraft-core" }
 earthcraft-data = { path = "crates/earthcraft-data" }
 earthcraft-render = { path = "crates/earthcraft-render", default-features = false }

@@ -23,3 +23,4 @@ unicode-normalization.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+syn.workspace = true
