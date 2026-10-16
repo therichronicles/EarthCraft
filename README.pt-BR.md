@@ -61,7 +61,7 @@ Consulte as [instruções da Apple](https://support.apple.com/pt-br/102445).
 
 ### Controles
 
-Arrastar: girar o globo · Clique com o botão direito: menu de contexto do local · Arrastar com o botão direito / Shift+arrastar: girar a vista · Roda / +/-: zoom · Duplo clique: voar até o ponto · Setas: mover · N: norte para cima
+Arrastar: girar o globo · Clique com o botão direito: menu de contexto do local · Arrastar com o botão direito / Shift+arrastar: girar a vista · Roda / +/-: zoom · Duplo clique: voar até o ponto · Setas: mover · Botão central + arrastar: inclinar câmera · N: norte para cima · R: redefinir norte e inclinação
 
 Clique em **Altitude da câmera** na barra inferior para informar uma altitude exata.
 

@@ -24,6 +24,7 @@ fn conservative_bounds_keep_visible_interiors_across_poles_dateline_and_horizon(
                 for altitude in [0.15, 500.0, 14000.0, 40000.0] {
                     for heading in [0.0, 90.0, 170.0] {
                         let basis = Cam {
+                            tilt: 0.0,
                             lat: latitude,
                             lon: longitude,
                             alt: altitude,
@@ -82,6 +83,7 @@ fn hidden_and_offscreen_lines_are_rejected_without_reordering_survivors() {
     };
     let index = BoundaryIndex::new(&data);
     let basis = Cam {
+        tilt: 0.0,
         lat: 0.0,
         lon: 0.0,
         alt: 500.0,
@@ -149,6 +151,7 @@ fn static_boundary_index_time() {
     let rect = Rect::from_min_size(emath::Pos2::ZERO, emath::vec2(800.0, 600.0));
     for lon in 0..360 {
         let basis = Cam {
+            tilt: 0.0,
             lat: 20.0,
             lon: lon as f64 - 180.0,
             alt: 500.0,

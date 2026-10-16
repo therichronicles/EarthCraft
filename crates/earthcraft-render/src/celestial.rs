@@ -82,6 +82,7 @@ mod tests {
     #[test]
     fn realistic_daylight_fades_at_the_surface_and_cinematic_is_explicit() {
         let mut camera = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             alt: 0.15,

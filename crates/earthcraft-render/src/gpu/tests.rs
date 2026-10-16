@@ -30,6 +30,7 @@ fn gpu_overview_matches_cpu() {
         ] {
             for enabled in [false, true] {
                 let cam = Cam {
+                    tilt: 0.0,
                     lat,
                     lon,
                     alt,
@@ -148,6 +149,7 @@ fn gpu_overview_matches_cpu() {
 #[test]
 fn unsupported_views_choose_precision_instead_of_truncating_gpu_work() {
     let cam = Cam {
+        tilt: 0.0,
         lat: -15.0,
         lon: -50.0,
         heading: 25.0,

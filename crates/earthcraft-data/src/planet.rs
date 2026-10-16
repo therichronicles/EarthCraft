@@ -44,9 +44,15 @@ pub fn encode_planet(
     texture_bytes: Vec<u8>,
     sky_bytes: Vec<u8>,
 ) -> Result<Vec<u8>, crate::Error> {
-    image::load_from_memory(&texture_bytes)?;
+    crate::files::images::decode_texture(
+        &texture_bytes,
+        crate::files::images::MAX_TEXTURE_SIDE_PX,
+    )?;
     if !sky_bytes.is_empty() {
-        image::load_from_memory(&sky_bytes)?;
+        crate::files::images::decode_texture(
+            &sky_bytes,
+            crate::files::images::MAX_TEXTURE_SIDE_PX,
+        )?;
     }
     Ok(serde_json::to_vec(&PlanetFile {
         version: 2,
@@ -58,7 +64,13 @@ pub fn encode_planet(
 }
 
 pub fn load_planet(path: &Path) -> Result<LoadedPlanet, crate::Error> {
-    decode_planet(&fs::read(path)?, |texture| {
+    load_planet_with_limit(path, crate::files::images::MAX_TEXTURE_SIDE_PX)
+}
+pub(crate) fn load_planet_with_limit(
+    path: &Path,
+    max_side: u32,
+) -> Result<LoadedPlanet, crate::Error> {
+    decode_planet_with_limit(&fs::read(path)?, max_side, |texture| {
         Ok(fs::read(
             path.parent().unwrap_or(Path::new(".")).join(texture),
         )?)
@@ -67,6 +79,17 @@ pub fn load_planet(path: &Path) -> Result<LoadedPlanet, crate::Error> {
 /// Decode either document version. A frontend resolves legacy sidecar image names.
 pub fn decode_planet(
     bytes: &[u8],
+    read_texture: impl FnOnce(&str) -> Result<Vec<u8>, crate::Error>,
+) -> Result<LoadedPlanet, crate::Error> {
+    decode_planet_with_limit(
+        bytes,
+        crate::files::images::MAX_TEXTURE_SIDE_PX,
+        read_texture,
+    )
+}
+fn decode_planet_with_limit(
+    bytes: &[u8],
+    max_side: u32,
     read_texture: impl FnOnce(&str) -> Result<Vec<u8>, crate::Error>,
 ) -> Result<LoadedPlanet, crate::Error> {
     let doc: PlanetFile = serde_json::from_slice(bytes)?;
@@ -81,11 +104,14 @@ pub fn decode_planet(
     } else {
         return Err("Unsupported version".into());
     };
-    let planet = image::load_from_memory(&data)?.to_rgba8();
+    let planet = crate::files::images::decode_texture(&data, max_side)?;
     let sky = if doc.sky_bytes.is_empty() {
         None
     } else {
-        Some(image::load_from_memory(&doc.sky_bytes)?.to_rgba8())
+        Some(crate::files::images::decode_texture(
+            &doc.sky_bytes,
+            max_side,
+        )?)
     };
     Ok(LoadedPlanet {
         name: doc.name,
@@ -106,6 +132,16 @@ mod tests {
         let mut out = std::io::Cursor::new(Vec::new());
         image.write_to(&mut out, image::ImageFormat::Png).unwrap();
         out.into_inner()
+    }
+    #[test]
+    fn bounded_document_keeps_original_encoded_assets() {
+        let original = png();
+        let bytes = encode_planet("Bounded", original.clone(), original.clone()).unwrap();
+        let loaded = decode_planet_with_limit(&bytes, 1, |_| unreachable!()).unwrap();
+        assert_eq!(loaded.planet.dimensions(), (1, 1));
+        assert_eq!(loaded.sky.unwrap().dimensions(), (1, 1));
+        assert_eq!(*loaded.assets.texture, original);
+        assert_eq!(*loaded.assets.sky, original);
     }
     #[test]
     fn embedded_document_round_trips_without_a_filesystem() {

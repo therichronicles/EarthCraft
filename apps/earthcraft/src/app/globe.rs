@@ -11,6 +11,7 @@ use eframe::egui::{
 use std::time::{Duration, Instant};
 mod ruler_input;
 
+const DRAG_TILT_DEG_PER_POINT: f64 = 0.2;
 const DRAG_HEADING_DEG_PER_POINT: f64 = 0.3;
 const SCROLL_ZOOM_RATE_PER_POINT: f64 = 0.0025;
 const POINT_FLY_ALTITUDE_RATIO: f64 = 0.35;
@@ -21,10 +22,16 @@ const IDLE_RENDER_DELAY: Duration = Duration::from_millis(250);
 const TILE_REDRAW_INTERVAL: Duration = Duration::from_millis(60);
 const OVERVIEW_WARMUP_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
+const KEYBOARD_ZOOM_RATE_PER_SEC: f64 = 1.2;
+
 impl App {
     pub(super) fn globe_view(&mut self, ui: &mut egui::Ui) {
+        let earth = self.explorer.active == earthcraft_core::body::Body::Earth;
         let lg = self.lang;
         let viewport = ui.available_rect_before_wrap();
+        if !viewport.is_finite() || viewport.width() <= 0.0 || viewport.height() <= 0.0 {
+            return;
+        }
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
         let sense = if self.sidebar_animating {
             Sense::hover()
@@ -40,7 +47,18 @@ impl App {
 
         // ── input
         let mut interacting = self.controller_input(ui, rect.height());
-        if !ruler_captured && resp.dragged_by(PointerButton::Primary) && !shift {
+        if !ruler_captured
+            && resp.dragged_by(PointerButton::Middle)
+            && self.explorer.active == earthcraft_core::body::Body::Earth
+        {
+            self.fly = None;
+            self.cam.tilt_by(
+                -f64::from(ui.input(|i| i.pointer.delta().y))
+                    * DRAG_TILT_DEG_PER_POINT
+                    * self.settings.navigation.rotation_sensitivity,
+            );
+            interacting = true;
+        } else if !ruler_captured && resp.dragged_by(PointerButton::Primary) && !shift {
             let d =
                 ui.input(|i| i.pointer.delta()) * self.settings.navigation.pan_sensitivity as f32;
             self.fly = None;
@@ -131,11 +149,16 @@ impl App {
                 )
             });
             if zin {
-                self.zoom((-1.2 * dt).exp());
+                self.zoom((-KEYBOARD_ZOOM_RATE_PER_SEC * dt).exp());
                 interacting = true;
             }
             if zout {
-                self.zoom((1.2 * dt).exp());
+                self.zoom((KEYBOARD_ZOOM_RATE_PER_SEC * dt).exp());
+                interacting = true;
+            }
+            if ui.input(|i| i.key_pressed(Key::R)) {
+                self.fly = None;
+                self.cam.reset_view();
                 interacting = true;
             }
             if north {
@@ -150,7 +173,9 @@ impl App {
         // ── rendering
         let idle = self.last_interact.elapsed() > IDLE_RENDER_DELAY && !resp.dragged();
         let render_aspect = (viewport.width() / viewport.height()) as f64;
-        let (w, h) = earthcraft_render::view::raster_size(viewport.size(), ppp, idle);
+        let Some((w, h)) = earthcraft_render::view::raster_size(viewport.size(), ppp, idle) else {
+            return;
+        };
         let keys = earthcraft_render::view::RasterView {
             camera: self.cam,
             model: self.active_earth_model(),
@@ -171,8 +196,11 @@ impl App {
         let presentation = keys.presentation;
         // Keep the displayed view stable while the sidebar changes the viewport.
         // A running job may finish, but publication/submission resume only at rest.
-        if !self.sidebar_animating {
+        if earth && !self.sidebar_animating {
             self.poll_render(presentation, ui);
+        }
+        if !viewport.is_finite() || viewport.width() <= 0.0 || viewport.height() <= 0.0 {
+            return;
         }
         let rect = self.renderer.displayed_rect().unwrap_or(viewport);
 
@@ -223,17 +251,17 @@ impl App {
             ui.request_repaint_after(TILE_REDRAW_INTERVAL);
             need = false;
         }
-        if need && !self.sidebar_animating {
+        if earth && need && !self.sidebar_animating {
             self.request_render(w, h, render_aspect, presentation, viewport, ppp);
             self.last_state = state;
             self.last_gen = generation;
             self.last_render = Instant::now();
         }
-        if state == self.last_state && self.renderer.is_idle() {
+        if earth && state == self.last_state && self.renderer.is_idle() {
             self.renderer
                 .refill_requests(&self.cache, generation != self.last_gen, ui);
         }
-        if !self.sidebar_animating {
+        if earth && !self.sidebar_animating {
             self.last_gen = generation;
         }
         if !idle {
@@ -241,7 +269,8 @@ impl App {
         }
         // The frame worker admits visible tiles before becoming idle. Speculative
         // work waits for it, and pauses during interaction/closer zoom/other layers.
-        if idle
+        if earth
+            && idle
             && self.renderer.is_idle()
             && self.provider == Provider::Satellite
             && self.cam.alt >= OVERVIEW_WARMUP_ALTITUDE_KM
@@ -295,17 +324,12 @@ impl App {
         let (display_cam, display_basis) =
             self.renderer.displayed_view().unwrap_or((self.cam, basis));
         if self.explorer.active == earthcraft_core::body::Body::Earth {
-            self.live_maps.draw(
-                &painter,
-                &display_basis,
-                rect,
-                self.show_clouds,
-                self.show_weather,
-            );
             let live_geometry = if self.show_roads
                 || self.show_traffic
                 || self.show_vessels
                 || self.show_satellites
+                || self.show_clouds
+                || self.show_weather
             {
                 let input = self.live_layer_input(
                     display_basis,
@@ -317,6 +341,8 @@ impl App {
             } else {
                 None
             };
+            self.live_maps
+                .draw(&painter, rect, live_geometry.as_deref());
             if self.show_roads
                 && let Some(geometry) = &live_geometry
             {

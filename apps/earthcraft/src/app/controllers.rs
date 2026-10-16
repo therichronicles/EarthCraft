@@ -5,6 +5,8 @@ use earthcraft_data::settings::controllers::ControllerPreferences;
 use eframe::egui;
 use gilrs::{Axis, Button, EventType, GamepadId, Gilrs};
 use std::time::{Duration, Instant};
+#[cfg(target_os = "macos")]
+mod nintendo;
 const ACTIVE_POLL_INTERVAL: Duration = Duration::from_millis(16);
 const HOTPLUG_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const MAX_EVENTS_PER_FRAME: usize = 512;
@@ -54,6 +56,8 @@ pub(super) struct BindingCapture {
 }
 pub(super) struct Controllers {
     backend: Option<Gilrs>,
+    #[cfg(target_os = "macos")]
+    nintendo: Option<Result<nintendo::Nintendo, String>>,
     pub(super) devices: Vec<Device>,
     pub(super) error: Option<String>,
     pub(super) capture: Option<BindingCapture>,
@@ -81,6 +85,8 @@ impl Controllers {
             .unwrap_or_default();
         Self {
             backend,
+            #[cfg(target_os = "macos")]
+            nintendo: None,
             devices,
             error,
             capture: None,
@@ -128,6 +134,26 @@ impl Controllers {
             self.capture = None;
         }
         if let Some(backend) = &mut self.backend {
+            #[cfg(target_os = "macos")]
+            {
+                if self.nintendo.is_none()
+                    && backend
+                        .gamepads()
+                        .any(|(_, gamepad)| nintendo::Nintendo::supports(&gamepad))
+                {
+                    self.nintendo = Some(nintendo::Nintendo::new(ctx));
+                }
+                if let Some(nintendo) = &mut self.nintendo {
+                    match nintendo {
+                        Ok(nintendo) => {
+                            let (reset, error) = nintendo.poll(backend);
+                            self.suspended |= reset;
+                            self.error = error;
+                        }
+                        Err(error) => self.error = Some(error.clone()),
+                    }
+                }
+            }
             for _ in 0..MAX_EVENTS_PER_FRAME {
                 let Some(event) = backend.next_event() else {
                     break;
@@ -224,6 +250,7 @@ impl Controllers {
                     }
                 }
             }
+            backend.inc();
         }
         ctx.request_repaint_after(if self.devices.is_empty() {
             HOTPLUG_POLL_INTERVAL
@@ -242,12 +269,7 @@ impl Controllers {
             && prefs.enabled
             && self.capture.is_none()
             && self.conflict.is_none()
-            && device
-                .state
-                .axes
-                .iter()
-                .all(|axis| axis.abs() < NEUTRAL_THRESHOLD)
-            && device.state.buttons.iter().all(|down| !down)
+            && neutral(&device.state, &prefs.profile(&device.key))
         {
             self.suspended = false;
         }
@@ -311,6 +333,11 @@ impl App {
                     self.ruler_drag = None;
                     None
                 }
+                ControllerAction::Reset => {
+                    self.fly = None;
+                    self.cam.reset_view();
+                    None
+                }
                 ControllerAction::None => None,
             };
             if let Some(menu) = menu {
@@ -332,3 +359,23 @@ impl App {
         false
     }
 }
+
+fn neutral(
+    state: &ControllerState,
+    profile: &earthcraft_core::controller::ControllerProfile,
+) -> bool {
+    profile.axes.iter().all(|binding| {
+        binding.input.is_none_or(|input| {
+            state
+                .axes
+                .get(input)
+                .is_none_or(|value| value.abs() < NEUTRAL_THRESHOLD.max(binding.deadzone))
+        })
+    }) && state
+        .buttons
+        .iter()
+        .zip(profile.buttons)
+        .all(|(down, action)| !down || action == ControllerAction::None)
+}
+#[cfg(test)]
+mod tests;

@@ -183,6 +183,7 @@ mod tests {
             (37.0, -122.0, 45.0, 0.15),
         ] {
             let basis = Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 heading,
@@ -224,6 +225,7 @@ mod tests {
             assert!(
                 project_grid_labels(
                     &Cam {
+                        tilt: 0.0,
                         lat: 0.0,
                         lon: 0.0,
                         heading: 0.0,

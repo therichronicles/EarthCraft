@@ -8,9 +8,6 @@ use earthcraft_render::live_layers::{LiveGeometry, LiveInput, LiveView, LiveWork
 use eframe::egui;
 use std::sync::Arc;
 
-const MIN_TRAFFIC_WIDTH_PX: usize = 160;
-const MAX_TRAFFIC_DIMENSION_PX: usize = 800;
-
 pub(super) struct LiveOverlay {
     worker: LiveWorker,
     requested: Option<LiveInput>,
@@ -59,10 +56,14 @@ impl App {
         camera: Cam,
         pixels_per_point: f32,
     ) -> LiveInput {
-        let width = ((rect.width() * pixels_per_point) as usize)
-            .clamp(MIN_TRAFFIC_WIDTH_PX, MAX_TRAFFIC_DIMENSION_PX);
-        let height = ((width as f32 * rect.height() / rect.width().max(1.0)) as usize)
-            .clamp(1, MAX_TRAFFIC_DIMENSION_PX);
+        let (width, height) = earthcraft_render::weather::traffic_size(rect, pixels_per_point);
+        let (weather_width, weather_height) = earthcraft_render::weather::weather_size(
+            rect,
+            pixels_per_point,
+            self.fly.is_some()
+                || self.last_interact.elapsed() < earthcraft_render::weather::SETTLE_DELAY,
+        );
+        let (cloud, radar) = self.live_maps.snapshot(self.show_clouds, self.show_weather);
         LiveInput {
             view: LiveView {
                 basis,
@@ -72,6 +73,8 @@ impl App {
                 pixels_per_point,
                 traffic_width_px: width,
                 traffic_height_px: height,
+                weather_width_px: weather_width,
+                weather_height_px: weather_height,
             },
             roads: self
                 .show_roads
@@ -93,6 +96,8 @@ impl App {
                 .show_traffic
                 .then(|| self.traffic.service.shared_tiles())
                 .flatten(),
+            cloud,
+            radar,
             unix_secs: now_unix(),
         }
     }
@@ -127,6 +132,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut overlay = LiveOverlay::new(ctx);
         let cam = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 0.0,
@@ -141,11 +147,15 @@ mod tests {
                 pixels_per_point: 1.0,
                 traffic_width_px: 16,
                 traffic_height_px: 16,
+                weather_width_px: 16,
+                weather_height_px: 16,
             },
             roads: None,
             vessels: None,
             satellites: None,
             traffic: None,
+            cloud: None,
+            radar: None,
             unix_secs: 1_700_000_000.0,
         };
         let geometry =

@@ -210,6 +210,7 @@ mod tests {
             (0.0, 0.0, 0.0, 40000.0),
         ] {
             let basis = Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 heading,
@@ -262,6 +263,7 @@ mod tests {
                     MAX_CAMERA_ALTITUDE_KM,
                 ] {
                     let basis = Cam {
+                        tilt: 0.0,
                         lat,
                         lon,
                         heading,

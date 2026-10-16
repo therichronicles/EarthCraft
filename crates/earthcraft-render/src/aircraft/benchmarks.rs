@@ -11,6 +11,7 @@ const ITERATIONS: usize = 100;
 fn aircraft_projection_cost() {
     let flights = flights();
     let basis = Cam {
+        tilt: 0.0,
         lat: 0.0,
         lon: 0.0,
         heading: 25.0,
@@ -40,6 +41,7 @@ fn aircraft_geometry_reuse_cost() {
     let mut preparer = AircraftPreparer::default();
     let view = ProjectionView {
         basis: Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 25.0,

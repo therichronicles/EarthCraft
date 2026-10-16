@@ -15,6 +15,7 @@ rust-version = "1.95"
 license = "MIT"
 
 [workspace.dependencies]
+syn = { version = "2.0.119", features = ["full", "visit"] }
 earthcraft-core = { path = "crates/earthcraft-core" }
 earthcraft-data = { path = "crates/earthcraft-data" }
 earthcraft-render = { path = "crates/earthcraft-render", default-features = false }
@@ -32,6 +33,8 @@ sofars = "0.6.1"
 png = "0.18.1"
 ab_glyph = "0.2.32"
 gilrs = "0.11.2"
+# macOS Nintendo full-report compatibility; gilrs remains the controller backend.
+hidapi = { version = "2.6.7", default-features = false }
 fontdb = { version = "0.24.0", default-features = false, features = ["std", "fs", "fontconfig"] }
 geographiclib-rs = { version = "0.2.7", default-features = false }
 glam = { version = "0.34.1", default-features = false, features = ["std", "f64"] }

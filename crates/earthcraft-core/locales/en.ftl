@@ -559,7 +559,7 @@ settings-startup-help = The saved position, heading and camera altitude are used
 
 settings-category-controllers = Controllers
 controllers-enabled = Enable controllers
-controllers-help = Explore navigation: left stick pans, right stick X rotates, triggers zoom. Return controls to neutral after closing dialogs or reconnecting.
+controllers-help = Explore navigation: left stick pans, right stick X rotates and Y tilts, triggers zoom. Return controls to neutral after closing dialogs or reconnecting.
 controllers-disconnected = No selected device connected
 controllers-action-none = Unbound
 controllers-action-cancel = Cancel camera movement
@@ -596,3 +596,42 @@ sky-short-credit = Sky: NASA SVS · Gaia DR2 (ESA/Gaia/DPAC)
 sky-combined-credit = { $map }
     { $sky }
 sky-software-credits = Celestial transform software licenses
+
+roads-unnamed-label = Unnamed road
+
+vessels-unnamed-label = AIS vessel
+
+live-clouds-error =
+    { $cached ->
+        [true] Clouds update failed (showing cached image): { $error }
+       *[false] Clouds update failed: { $error }
+    }
+
+live-radar-error =
+    { $cached ->
+        [true] Radar update failed (showing cached image): { $error }
+       *[false] Radar update failed: { $error }
+    }
+
+settings-cache-persistence-error = Disk cache unavailable: { $error }
+
+traffic-partial-error = Traffic incomplete: { $count } tiles failed to load
+
+live-radar-partial-error = Radar incomplete: { $count } tiles failed to load
+
+controllers-tilt = Camera tilt
+
+controllers-pressed = Pressed
+
+controllers-released = Released
+
+navigation-reset-view-action = Reset north and tilt
+
+navigation-tilt-label = Camera tilt
+
+navigation-tilt-help = Drag with the middle mouse button or move the controller’s right stick vertically. Tilt looks toward the horizon from the current camera position.
+
+navigation-reset-view-help = R resets north and tilt. N resets north only.
+
+controls-tilt-help-text = • Middle-drag / right stick Y: tilt the Earth camera
+    • R: reset north and tilt

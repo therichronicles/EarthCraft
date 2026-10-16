@@ -141,6 +141,7 @@ mod tests {
         for units in [DistanceUnits::Metric, DistanceUnits::Imperial] {
             for altitude in [1.0, 100.0, 1000.0] {
                 let basis = Cam {
+                    tilt: 0.0,
                     lat: 45.0,
                     lon: 179.9,
                     heading: 75.0,

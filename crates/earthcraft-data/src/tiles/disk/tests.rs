@@ -128,3 +128,29 @@ async fn disk_usage_counts_managed_files_and_refreshes_after_clearing() {
     disk.clear().await.unwrap();
     assert_eq!(disk.usage_bytes().await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn persistence_failures_remain_visible_while_reads_can_fall_back() {
+    let fixture = Fixture::new();
+    std::fs::write(fixture.0.join("osm"), b"blocked directory").unwrap();
+    let disk = fixture.disk();
+    let path = fixture.0.join("osm/3/0/0.tile");
+    assert!(disk.write(&path, b"pixels", disk.epoch()).await.is_err());
+    assert!(
+        disk.latest_error()
+            .unwrap()
+            .starts_with("Disk tile cache write failed:")
+    );
+    assert!(disk.read(&path).await.is_none());
+    assert!(disk.latest_error().unwrap().contains("failed:"));
+}
+#[test]
+fn diagnostics_rate_limit_logs_but_keep_the_latest_bounded_message() {
+    let mut diagnostics = Diagnostics::default();
+    let now = Instant::now();
+    assert!(diagnostics.record("first".into(), now));
+    assert!(!diagnostics.record("second".into(), now));
+    assert_eq!(diagnostics.latest.as_deref(), Some("second"));
+    assert!(diagnostics.record("x".repeat(MAX_ERROR_CHARS * 2), now + ERROR_LOG_INTERVAL));
+    assert_eq!(diagnostics.latest.unwrap().len(), MAX_ERROR_CHARS);
+}

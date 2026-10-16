@@ -15,6 +15,7 @@ pub struct TrafficTiles {
     pub left_x: i64,
     pub top_y: i64,
     pub loaded: Instant,
+    pub failed_tiles: usize,
 }
 impl TrafficTiles {
     pub fn sample(&self, lat: f64, lon: f64) -> Option<[u8; 4]> {
@@ -25,10 +26,7 @@ impl TrafficTiles {
         let tx = ((lon + 180.0) / 360.0 * scale).rem_euclid(scale);
         let lat_r = lat.to_radians();
         let ty = (1.0 - lat_r.tan().asinh() / std::f64::consts::PI) * 0.5 * scale;
-        let mut dx = tx - self.left_x as f64;
-        if dx < 0.0 {
-            dx += scale;
-        }
+        let dx = (tx - self.left_x as f64).rem_euclid(scale);
         if dx >= 3.0 || !(0.0..3.0).contains(&(ty - self.top_y as f64)) {
             return None;
         }
@@ -82,6 +80,12 @@ impl LiveTraffic {
         }
         if let Some(error) = &self.error {
             return format!("TomTom: {error}");
+        }
+        if let Some(tiles) = self.tiles().filter(|tiles| tiles.failed_tiles > 0) {
+            return earthcraft_core::language::Lang::En.format(
+                "traffic-partial-error",
+                &[("count", tiles.failed_tiles.into())],
+            );
         }
         match self.tiles() {
             Some(tiles) => lang.format(
@@ -188,6 +192,7 @@ async fn download(zoom: u32, x: i64, y: i64, key: String) -> Result<TrafficTiles
     let top = (y - 1).clamp(0, n - 1);
     let mut decoded = Vec::with_capacity(9);
     let mut tasks = tokio::task::JoinSet::new();
+    let mut expected_tiles = 0;
     for iy in 0..3 {
         for ix in 0..3 {
             let ty = top + iy;
@@ -200,6 +205,7 @@ async fn download(zoom: u32, x: i64, y: i64, key: String) -> Result<TrafficTiles
             );
             let client = client.clone();
             let key = key.clone();
+            expected_tiles += 1;
             tasks.spawn(async move {
                 let bytes =
                     crate::http::body(client.get(url).header("TomTom-Api-Key", key), 350_000)
@@ -222,29 +228,77 @@ async fn download(zoom: u32, x: i64, y: i64, key: String) -> Result<TrafficTiles
             decoded.push((ix, iy, img));
         }
     }
+    crate::cpu::run(crate::cpu::Service::Features, move || {
+        compose_tiles(zoom, left, top, decoded, expected_tiles)
+    })
+    .await
+}
+fn compose_tiles(
+    zoom: u32,
+    left: i64,
+    top: i64,
+    decoded: Vec<(i64, i64, RgbaImage)>,
+    expected_tiles: usize,
+) -> Result<TrafficTiles, crate::Error> {
     if decoded.is_empty() {
         return Err(
             "No live traffic tiles (invalid key, rate limit or provider unavailable)".into(),
         );
     }
-    crate::cpu::run(crate::cpu::Service::Features, move || {
-        let mut image = RgbaImage::new(768, 768);
-        for (ix, iy, tile) in decoded {
-            imageops::overlay(&mut image, &tile, ix * 256, iy * 256);
-        }
-        Ok(TrafficTiles {
-            image,
-            zoom,
-            left_x: left,
-            top_y: top,
-            loaded: Instant::now(),
-        })
+    let failed_tiles = expected_tiles.saturating_sub(decoded.len());
+    let mut image = RgbaImage::new(768, 768);
+    for (ix, iy, tile) in decoded {
+        imageops::overlay(&mut image, &tile, ix * 256, iy * 256);
+    }
+    Ok(TrafficTiles {
+        image,
+        zoom,
+        left_x: left,
+        top_y: top,
+        loaded: Instant::now(),
+        failed_tiles,
     })
-    .await
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn west_column_wraps_across_positive_and_negative_dateline() {
+        let tiles = TrafficTiles {
+            image: RgbaImage::from_fn(768, 768, |x, _| {
+                image::Rgba([(x / 256 + 1) as u8, 0, 0, 255])
+            }),
+            zoom: 2,
+            left_x: -1,
+            top_y: 1,
+            loaded: Instant::now(),
+            failed_tiles: 0,
+        };
+        assert_eq!(tiles.sample(0.0, 179.0), Some([1, 0, 0, 255]));
+        assert_eq!(tiles.sample(0.0, -179.0), Some([2, 0, 0, 255]));
+        assert_eq!(tiles.sample(0.0, -89.0), Some([3, 0, 0, 255]));
+        assert_eq!(tiles.sample(0.0, 1.0), None);
+    }
+    #[test]
+    fn partial_composites_preserve_pixels_and_report_failures_in_both_languages() {
+        let tile = RgbaImage::from_pixel(256, 256, image::Rgba([5, 10, 15, 255]));
+        let tiles = compose_tiles(2, 0, 0, vec![(0, 0, tile)], 2).unwrap();
+        assert_eq!(tiles.failed_tiles, 1);
+        assert_eq!(tiles.image.get_pixel(0, 0).0, [5, 10, 15, 255]);
+        assert_eq!(tiles.image.get_pixel(256, 0).0, [0, 0, 0, 0]);
+        let live = LiveTraffic {
+            tiles: Some(Arc::new(tiles)),
+            ..Default::default()
+        };
+        for lang in earthcraft_core::language::Lang::ALL {
+            assert_eq!(
+                live.status("key", 1.0, lang),
+                "Traffic incomplete: 1 tiles failed to load"
+            );
+        }
+        assert!(compose_tiles(2, 0, 0, Vec::new(), 2).is_err());
+    }
     #[test]
     fn mercator_center_and_wrap() {
         assert_eq!(center_tile(0.0, 0.0, 2), (2, 2));
@@ -255,6 +309,7 @@ mod tests {
             left_x: 1,
             top_y: 1,
             loaded: Instant::now(),
+            failed_tiles: 0,
         };
         assert!(t.sample(0.0, 0.0).is_some());
         // At zoom 2, rows 1..4 include the southern hemisphere down to -85 degrees.
@@ -274,6 +329,7 @@ mod refresh_tests {
             left_x: 1,
             top_y: 1,
             loaded: Instant::now(),
+            failed_tiles: 0,
         }
     }
     #[test]

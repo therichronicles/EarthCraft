@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release.yml'
+      - '.github/actions/release-tools/**'
       - 'scripts/package_*.py'
       - 'scripts/test_package_*.py'
       - 'packaging/**'
@@ -51,6 +52,7 @@ jobs:
           name: release-changelog-${{ steps.version.outputs.version }}
           path: CHANGELOG.md
           if-no-files-found: error
+          compression-level: 0
           retention-days: 7
 
   build:
@@ -98,9 +100,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pkg-config libudev-dev libgtk-3-dev libxkbcommon-dev libwayland-dev libx11-dev
       - name: Build CPU-only release binary
         run: cargo build -p earthcraft --release --no-default-features --locked --target ${{ matrix.target }}
-      - name: Install cargo-packager
-        if: runner.os != 'Windows'
-        run: cargo install cargo-packager --version 0.11.8 --locked
+      - uses: ./.github/actions/release-tools
+        if: runner.os != 'Windows' || matrix.target == 'x86_64-pc-windows-msvc'
+        with:
+          rpm: ${{ runner.os == 'Linux' }}
       - name: Install macOS DMG layout tool
         if: runner.os == 'macOS'
         run: python -m pip install dmgbuild==1.6.7
@@ -111,7 +114,6 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get install -y desktop-file-utils appstream zsync rpm libgirepository1.0-dev librsvg2-dev patchelf file
-          cargo install cargo-generate-rpm --version 0.21.0 --locked
       - name: Package Linux installers and AppImage
         if: runner.os == 'Linux'
         run: python scripts/package_linux.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/earthcraft --output dist --formats deb rpm appimage
@@ -125,67 +127,27 @@ jobs:
           dpkg-deb --contents dist/*.deb
           rpm -qip dist/*.rpm
           rpm -qlp dist/*.rpm
-      - uses: actions/upload-artifact@v7
-        with:
-          name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
-          path: dist/*
-          if-no-files-found: error
-          retention-days: 7
-
-  windows-installers:
-    name: Windows ${{ matrix.arch }} / MSI
-    needs: [version, build]
-    runs-on: windows-2022
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            target: x86_64-pc-windows-msvc
-          - arch: arm64
-            target: aarch64-pc-windows-msvc
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-      - uses: actions/download-artifact@v8
-        with:
-          name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
-          path: downloaded
-      - name: Extract the existing native executable
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          ARCH: ${{ matrix.arch }}
-        run: Expand-Archive -LiteralPath "downloaded/earthcraft-${env:VERSION}-windows-${env:ARCH}-portable.zip" -DestinationPath payload
-      - uses: dtolnay/rust-toolchain@master
-        if: matrix.arch == 'x64'
-        with:
-          toolchain: '1.95'
-      - uses: Swatinem/rust-cache@v2
-        if: matrix.arch == 'x64'
-        with:
-          key: release-packager-windows-x64
-      - name: Install cargo-packager
-        if: matrix.arch == 'x64'
-        run: cargo install cargo-packager --version 0.11.8 --locked
       - name: Install WiX for ARM64
-        if: matrix.arch == 'arm64'
+        if: matrix.target == 'aarch64-pc-windows-msvc'
         run: dotnet tool install --global wix --version 5.0.2
-      - name: Package MSI and standalone executable
-        run: python scripts/package_windows.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary payload/earthcraft.exe --output dist
+      - name: Package Windows MSI and standalone executable
+        if: runner.os == 'Windows'
+        run: python scripts/package_windows.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --binary target/${{ matrix.target }}/release/${{ matrix.executable }} --output dist
       - uses: actions/upload-artifact@v7
         with:
-          name: earthcraft-${{ needs.version.outputs.version }}-windows-${{ matrix.arch }}-installer
+          name: earthcraft-${{ needs.version.outputs.version }}-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
+          compression-level: 0
           retention-days: 7
 
   linux-bundles:
     name: Linux ${{ matrix.arch }} / ${{ matrix.format }}
     needs: version
     runs-on: ${{ matrix.os }}
+    env:
+      GSETTINGS_BACKEND: memory
+      EARTHCRAFT_FLATPAK_CACHE: ${{ github.workspace }}/target/packaging/flatpak-cache
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -210,15 +172,29 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.format }}-${{ matrix.target }}
+      - name: Cache Flatpak SDK installation
+        if: matrix.format == 'flatpak'
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/flatpak
+          key: flatpak-sdk-v1-${{ matrix.target }}-gnome49-rust25.08-${{ hashFiles('packaging/flatpak.json') }}
+      - name: Cache Flatpak build state
+        if: matrix.format == 'flatpak'
+        uses: actions/cache@v6
+        with:
+          path: target/packaging/flatpak-cache
+          key: flatpak-build-v1-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'packaging/flatpak.json') }}-${{ github.sha }}
+          restore-keys: |
+            flatpak-build-v1-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'packaging/flatpak.json') }}-
       - name: Install Flatpak builder and SDK
         if: matrix.format == 'flatpak'
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y flatpak dbus-daemon
-          sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install --noninteractive flathub org.flatpak.Builder org.gnome.Platform//49 org.gnome.Sdk//49 org.freedesktop.Sdk.Extension.rust-stable//25.08
-          dbus-run-session -- flatpak run --command=flatpak-spawn org.flatpak.Builder --host flatpak info --system org.gnome.Sdk//49
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive --or-update flathub org.flatpak.Builder org.gnome.Platform//49 org.gnome.Sdk//49 org.freedesktop.Sdk.Extension.rust-stable//25.08
+          dbus-run-session -- flatpak run --command=flatpak-spawn org.flatpak.Builder --host flatpak info --user org.gnome.Sdk//49
       - name: Package Flatpak
         if: matrix.format == 'flatpak'
         run: python scripts/package_linux.py --version ${{ needs.version.outputs.version }} --target ${{ matrix.target }} --output dist --formats flatpak
@@ -233,6 +209,7 @@ jobs:
           name: earthcraft-${{ needs.version.outputs.version }}-linux-${{ matrix.arch }}-${{ matrix.format }}
           path: dist/*
           if-no-files-found: error
+          compression-level: 0
           retention-days: 7
 
   freebsd:
@@ -242,10 +219,18 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
+      - name: Cache FreeBSD Cargo dependencies
+        uses: actions/cache@v6
+        with:
+          path: target/freebsd-cache
+          key: freebsd14.5-rust1.95-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            freebsd14.5-rust1.95-${{ hashFiles('Cargo.lock') }}-
       - name: Build and package in FreeBSD
         uses: vmactions/freebsd-vm@v1
         with:
           release: '14.5'
+          cache-after-prepare: true
           cpu: 4
           mem: 12288
           prepare: |
@@ -254,21 +239,24 @@ jobs:
           run: |
             set -eu
             . "$HOME/.cargo/env"
-            export CARGO_TARGET_DIR=/var/tmp/earthcraft-target CARGO_BUILD_JOBS=4
+            export CARGO_HOME="$(pwd)/target/freebsd-cache/cargo"
+            export CARGO_TARGET_DIR="$(pwd)/target/freebsd-cache/target" CARGO_BUILD_JOBS=4
+            touch apps/earthcraft/src/main.rs
             cargo build -p earthcraft --release --no-default-features --locked --target x86_64-unknown-freebsd
             python3.12 -m unittest discover -s scripts -p 'test_package_*.py'
-            python3.12 scripts/package_release.py package --version "$(python3.12 scripts/package_release.py validate)" --target x86_64-unknown-freebsd --binary /var/tmp/earthcraft-target/x86_64-unknown-freebsd/release/earthcraft --output dist
-            ldd /var/tmp/earthcraft-target/x86_64-unknown-freebsd/release/earthcraft
+            python3.12 scripts/package_release.py package --version "$(python3.12 scripts/package_release.py validate)" --target x86_64-unknown-freebsd --binary "$CARGO_TARGET_DIR/x86_64-unknown-freebsd/release/earthcraft" --output dist
+            ldd "$CARGO_TARGET_DIR/x86_64-unknown-freebsd/release/earthcraft"
       - uses: actions/upload-artifact@v7
         with:
           name: earthcraft-${{ needs.version.outputs.version }}-x86_64-unknown-freebsd
           path: dist/*
           if-no-files-found: error
+          compression-level: 0
           retention-days: 7
 
   publish:
     name: Publish GitHub release
-    needs: [version, build, windows-installers, linux-bundles, freebsd]
+    needs: [version, build, linux-bundles, freebsd]
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-22.04
     permissions:

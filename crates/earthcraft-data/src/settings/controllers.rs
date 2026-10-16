@@ -69,3 +69,18 @@ mod tests {
         assert!(!loaded.enabled);
     }
 }
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+    #[test]
+    fn legacy_five_axis_profiles_keep_custom_settings_and_gain_tilt() {
+        let mut profile = ControllerProfile::default();
+        profile.axes[0].inverted = true;
+        let mut value = serde_json::to_value(&profile).unwrap();
+        value["axes"].as_array_mut().unwrap().pop();
+        let loaded: ControllerProfile = serde_json::from_value(value).unwrap();
+        assert_eq!(loaded.axes[0], profile.axes[0]);
+        assert_eq!(loaded.axes[5].input, Some(3));
+    }
+}

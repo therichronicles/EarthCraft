@@ -21,6 +21,7 @@ fn input() -> ProjectionInput {
     ProjectionInput {
         view: ProjectionView {
             basis: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 heading: 0.0,
@@ -100,6 +101,7 @@ fn background_projection_coalesces_pending_views_and_uses_the_latest_displayed_c
     wakes.recv_timeout(Duration::from_secs(10)).unwrap();
     for heading in 1..=100 {
         request.view.basis = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: f64::from(heading),

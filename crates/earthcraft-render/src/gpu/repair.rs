@@ -59,7 +59,7 @@ pub(super) fn pixels(
                 .into_iter()
                 .filter_map(|(key, tile)| match tile {
                     crate::LocalTile::Absent(distance) => Some((key, Some(distance))),
-                    crate::LocalTile::Pending => Some((key, None)),
+                    crate::LocalTile::Pending(distance) => Some((key, Some(distance))),
                     crate::LocalTile::Ready(_) => None,
                 })
                 .collect::<Vec<_>>()

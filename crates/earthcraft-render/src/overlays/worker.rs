@@ -186,6 +186,7 @@ mod tests {
         });
         let view = OverlayView {
             basis: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 heading: 0.0,
@@ -295,6 +296,7 @@ mod tests {
         let data = Arc::new(BoundaryData::default());
         let mut view = OverlayView {
             basis: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 heading: 0.0,

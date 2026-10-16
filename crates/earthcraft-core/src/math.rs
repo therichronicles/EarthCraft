@@ -77,14 +77,14 @@ pub fn great_circle(a: (f64, f64), b: (f64, f64), n: usize) -> Vec<DVec3> {
         .collect()
 }
 pub fn fmt_dist(km: f64) -> String {
-    if km < 1.0 {
+    if (km * METERS_PER_KM).round() < METERS_PER_KM {
         format!("{:.0} m", km * METERS_PER_KM)
     } else {
         format!("{:.2} km", km)
     }
 }
 pub fn fmt_alt(km: f64) -> String {
-    if km < 1.0 {
+    if (km * METERS_PER_KM).round() < METERS_PER_KM {
         format!("{:.0} m", km * METERS_PER_KM)
     } else {
         format!("{:.0} km", km)

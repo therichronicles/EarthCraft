@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -60,6 +60,7 @@ pub struct TileCache {
     tx: tokio::sync::mpsc::Sender<TileKey>,
     generation: AtomicU64,
     inflight: AtomicUsize,
+    requests_enabled: AtomicBool,
 }
 
 impl TileCache {
@@ -105,6 +106,7 @@ impl TileCache {
             tx,
             generation: AtomicU64::new(0),
             inflight: AtomicUsize::new(0),
+            requests_enabled: AtomicBool::new(true),
         }
     }
     pub fn new(
@@ -181,13 +183,28 @@ impl TileCache {
     pub fn resident_bytes(&self) -> usize {
         usize::try_from(self.ready.weighted_size()).unwrap_or(usize::MAX)
     }
+    /// Pause new work and retire queued jobs, including overview requests.
+    /// Already active downloads can finish and populate the cache.
+    pub fn set_requests_enabled(&self, enabled: bool) -> bool {
+        let mut requests = self.requests.lock().unwrap();
+        let changed = self.requests_enabled.swap(enabled, Ordering::Relaxed) != enabled;
+        if !enabled {
+            for key in self.queue.lock().unwrap().drain(..) {
+                if matches!(requests.remove(&key), Some(RequestState::Loading(_))) {
+                    self.inflight.fetch_sub(1, Ordering::Relaxed);
+                }
+            }
+        }
+        changed
+    }
     pub fn request(&self, key: TileKey) -> bool {
         self.request_under_limit(key, MAX_INFLIGHT)
     }
     // Check under the admission lock, so background work cannot race past its limit.
     pub(super) fn request_under_limit(&self, key: TileKey, limit: usize) -> bool {
         let mut requests = self.requests.lock().unwrap();
-        if self.ready.contains_key(&key)
+        if !self.requests_enabled.load(Ordering::Relaxed)
+            || self.ready.contains_key(&key)
             || requests.get(&key).is_some_and(RequestState::is_pending)
             || self.inflight.load(Ordering::Relaxed) >= limit.min(MAX_INFLIGHT)
         {
@@ -313,6 +330,10 @@ impl TileCache {
     }
     /// Snapshot of encoded file bytes in the managed provider directories.
     /// Filesystem allocation overhead and other application data are excluded.
+    /// Latest bounded diagnostic; optional persistence failures never discard ready imagery.
+    pub fn disk_error(&self) -> Option<String> {
+        self.disk.latest_error()
+    }
     pub async fn disk_usage_bytes(&self) -> Result<u64, crate::Error> {
         self.disk.usage_bytes().await
     }
@@ -380,8 +401,10 @@ async fn worker(
                 // not delay imagery readiness. Persistence keeps its original epoch.
                 cache.complete(key, Ok(tile));
                 repaint();
-                if let Some((path, bytes)) = persistence {
-                    let _ = cache.disk.write_owned(&path, bytes, epoch).await;
+                if let Some((path, bytes)) = persistence
+                    && cache.disk.write_owned(&path, bytes, epoch).await.is_err()
+                {
+                    repaint();
                 }
             }
             Err(error) => {

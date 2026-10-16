@@ -10,6 +10,7 @@ fn repeated_ui_passes_share_icon_meshes_and_never_draw_geometry_for_another_view
     let mut input = ProjectionInput {
         view: ProjectionView {
             basis: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 heading: 0.0,
@@ -72,6 +73,7 @@ fn repeated_ui_passes_share_icon_meshes_and_never_draw_geometry_for_another_view
     overlay.accept(original, input.unix_secs);
     assert!(Arc::ptr_eq(overlay.geometry.as_ref().unwrap(), &newer));
     input.view.basis = Cam {
+        tilt: 0.0,
         lat: 0.0,
         lon: 45.0,
         heading: 0.0,
@@ -112,6 +114,7 @@ fn aircraft_mesh_repaint_cost() {
     let request = ProjectionInput {
         view: ProjectionView {
             basis: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 heading: 25.0,

@@ -27,6 +27,7 @@ impl App {
             .vscroll(true)
             .show(ctx, |ui| {
                 ui.label(lang.text("controls-help-text"));
+                ui.label(lang.text("controls-tilt-help-text"));
                 ui.separator();
                 for action in super::Action::ALL {
                     if let Some(shortcut) = action.shortcut() {

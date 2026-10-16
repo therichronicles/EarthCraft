@@ -4,7 +4,7 @@ use image::RgbaImage;
 mod download;
 use download::{download_clouds, download_radar};
 use std::{
-    sync::mpsc,
+    sync::{Arc, mpsc},
     time::{Duration, Instant},
 };
 const CLOUD_INTERVAL: Duration = Duration::from_secs(3 * 60 * 60);
@@ -14,12 +14,13 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(60);
 struct RadarFrame {
     image: RgbaImage,
     time: i64,
+    failed_tiles: usize,
 }
 
 #[derive(Default)]
 pub struct LiveMaps {
-    cloud: Option<RgbaImage>,
-    radar: Option<RgbaImage>,
+    cloud: Option<Arc<RgbaImage>>,
+    radar: Option<Arc<RgbaImage>>,
     cloud_rx: Option<mpsc::Receiver<Result<RgbaImage, crate::Error>>>,
     radar_rx: Option<mpsc::Receiver<Result<RadarFrame, crate::Error>>>,
     cloud_attempt: Option<Instant>,
@@ -27,6 +28,7 @@ pub struct LiveMaps {
     cloud_error: Option<String>,
     radar_error: Option<String>,
     radar_frame_time: Option<i64>,
+    radar_failed_tiles: usize,
     generation: u64,
 }
 impl LiveMaps {
@@ -41,7 +43,7 @@ impl LiveMaps {
         if let Some(rx) = &self.cloud_rx {
             match rx.try_recv() {
                 Ok(Ok(image)) => {
-                    self.cloud = Some(image);
+                    self.cloud = Some(Arc::new(image));
                     self.cloud_error = None;
                     self.cloud_rx = None;
                     self.generation += 1;
@@ -62,7 +64,8 @@ impl LiveMaps {
             match rx.try_recv() {
                 Ok(Ok(frame)) => {
                     self.radar_frame_time = Some(frame.time);
-                    self.radar = Some(frame.image);
+                    self.radar_failed_tiles = frame.failed_tiles;
+                    self.radar = Some(Arc::new(frame.image));
                     self.radar_error = None;
                     self.radar_rx = None;
                     self.generation += 1;
@@ -118,10 +121,16 @@ impl LiveMaps {
     }
 
     pub fn cloud(&self) -> Option<&RgbaImage> {
-        self.cloud.as_ref()
+        self.cloud.as_deref()
     }
     pub fn radar(&self) -> Option<&RgbaImage> {
-        self.radar.as_ref()
+        self.radar.as_deref()
+    }
+    pub fn shared_cloud(&self) -> Option<Arc<RgbaImage>> {
+        self.cloud.clone()
+    }
+    pub fn shared_radar(&self) -> Option<Arc<RgbaImage>> {
+        self.radar.clone()
     }
     pub fn generation(&self) -> u64 {
         self.generation
@@ -130,13 +139,23 @@ impl LiveMaps {
         let mut lines = Vec::new();
         if clouds {
             if let Some(err) = &self.cloud_error {
-                let failed = lang.text("live-clouds-failed");
-                let cached = if self.cloud.is_some() {
-                    lang.text("live-cached-image")
-                } else {
-                    ""
-                };
-                lines.push(format!("{failed}{cached}: {err}"));
+                lines.push(
+                    Lang::En.format(
+                        "live-clouds-error",
+                        &[
+                            (
+                                "cached",
+                                if self.cloud.is_some() {
+                                    "true"
+                                } else {
+                                    "false"
+                                }
+                                .into(),
+                            ),
+                            ("error", err.as_str().into()),
+                        ],
+                    ),
+                );
             } else if self.cloud.is_some() {
                 lines.push(lang.text("live-clouds-ok").to_owned());
             } else {
@@ -145,13 +164,28 @@ impl LiveMaps {
         }
         if radar {
             if let Some(err) = &self.radar_error {
-                let failed = lang.text("live-radar-failed");
-                let cached = if self.radar.is_some() {
-                    lang.text("live-cached-image")
-                } else {
-                    ""
-                };
-                lines.push(format!("{failed}{cached}: {err}"));
+                lines.push(
+                    Lang::En.format(
+                        "live-radar-error",
+                        &[
+                            (
+                                "cached",
+                                if self.radar.is_some() {
+                                    "true"
+                                } else {
+                                    "false"
+                                }
+                                .into(),
+                            ),
+                            ("error", err.as_str().into()),
+                        ],
+                    ),
+                );
+            } else if self.radar.is_some() && self.radar_failed_tiles > 0 {
+                lines.push(Lang::En.format(
+                    "live-radar-partial-error",
+                    &[("count", self.radar_failed_tiles.into())],
+                ));
             } else if self.radar.is_some() {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -168,4 +202,39 @@ impl LiveMaps {
 }
 fn refresh_due(last: Option<Instant>, loaded: bool, interval: Duration) -> bool {
     last.is_none_or(|t| t.elapsed() >= if loaded { interval } else { RETRY_INTERVAL })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn error_statuses_are_whole_english_messages_in_both_ui_languages() {
+        let maps = LiveMaps {
+            cloud_error: Some("cloud network failure".into()),
+            radar_error: Some("radar network failure".into()),
+            cloud: Some(Arc::new(RgbaImage::new(1, 1))),
+            ..Default::default()
+        };
+        let status = maps.status(true, true, Lang::En);
+        assert_eq!(maps.status(true, true, Lang::PtBr), status);
+        assert!(
+            status.contains("cloud network failure") && status.contains("radar network failure")
+        );
+        assert!(status.contains("showing cached image"));
+        assert!(maps.status(false, false, Lang::PtBr).is_empty());
+    }
+    #[test]
+    fn partial_radar_status_is_visible_in_both_languages() {
+        let live = LiveMaps {
+            radar: Some(Arc::new(RgbaImage::new(1, 1))),
+            radar_failed_tiles: 3,
+            ..Default::default()
+        };
+        for lang in Lang::ALL {
+            assert_eq!(
+                live.status(false, true, lang),
+                "Radar incomplete: 3 tiles failed to load"
+            );
+        }
+    }
 }

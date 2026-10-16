@@ -308,6 +308,12 @@ impl App {
                 }
             }
         });
+        if let Some(error) = self.cache.disk_error() {
+            ui.label(Lang::En.format(
+                "settings-cache-persistence-error",
+                &[("error", error.into())],
+            ));
+        }
         if *confirm_cache {
             ui.label(lg.text("settings-cache-confirm"));
             ui.horizontal(|ui| {

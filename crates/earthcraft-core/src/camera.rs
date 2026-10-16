@@ -7,6 +7,7 @@ use crate::{MAX_CAMERA_LATITUDE_DEG, METERS_PER_KM, METERS_PER_LATITUDE_DEGREE};
 use emath::{Pos2, Rect};
 use glam::{DMat2, DMat3, DMat4, DQuat, DVec2, DVec3, dcamera::rh};
 // Reject near-zero projection depths and rotation axes; bound pan amplification near poles.
+pub const MAX_TILT_DEG: f64 = 85.0;
 const PROJECTION_DEPTH_EPSILON: f64 = 1e-9;
 const ROTATION_AXIS_EPSILON: f64 = 1e-13;
 const MIN_PAN_LATITUDE_COSINE: f64 = 0.05;
@@ -19,6 +20,7 @@ const PROJECTION_NEAR_EARTH_RADII: f64 = MIN_CAMERA_ALTITUDE_KM / EARTH_RADIUS_K
 pub struct Cam {
     pub lat: f64,
     pub lon: f64,
+    pub tilt: f64,    // degrees from nadir toward the screen top
     pub heading: f64, // degrees: bearing the top of the screen points to
     pub alt: f64,     // km above the surface
 }
@@ -35,6 +37,22 @@ pub struct Basis {
 }
 
 impl Cam {
+    pub fn clamped_tilt(&self) -> f64 {
+        if self.tilt.is_finite() {
+            self.tilt.clamp(0.0, MAX_TILT_DEG)
+        } else {
+            0.0
+        }
+    }
+    pub fn tilt_by(&mut self, delta_deg: f64) {
+        if delta_deg.is_finite() {
+            self.tilt = (self.clamped_tilt() + delta_deg).clamp(0.0, MAX_TILT_DEG);
+        }
+    }
+    pub fn reset_view(&mut self) {
+        self.heading = 0.0;
+        self.tilt = 0.0;
+    }
     pub fn basis(&self, aspect: f64) -> Basis {
         self.basis_for_model(aspect, EarthModel::PerfectSphere)
     }
@@ -45,7 +63,15 @@ impl Cam {
         let north = DVec3::new(-la.sin() * lo.cos(), -la.sin() * lo.sin(), la.cos());
         let h = self.heading.to_radians();
         let u = north * h.cos() + east * h.sin();
-        let f = n * -1.0;
+        let tilt = self.clamped_tilt().to_radians();
+        let (f, u) = if tilt == 0.0 {
+            (n * -1.0, u)
+        } else {
+            (
+                -n * tilt.cos() + u * tilt.sin(),
+                u * tilt.cos() + n * tilt.sin(),
+            )
+        };
         // Geographic world axes are right-handed. View space is X-right/Y-up/-Z-forward.
         let view_from_world = rh::view::look_to_mat3(f, u);
         Basis {
@@ -258,6 +284,7 @@ mod tests {
             (0.0, 0.0, 0.0, 0.15),
         ] {
             let (mut cam, rect, aspect) = test_app_cam(Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 heading,
@@ -302,6 +329,7 @@ mod tests {
             (-60.0, 120.0, -130.0, 800.0),
         ] {
             let (mut cam, rect, aspect) = test_app_cam(Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 heading: hd,
@@ -339,6 +367,7 @@ mod bounds_tests {
     #[test]
     fn zoom_clamps_altitude_without_a_surface_pick() {
         let mut cam = Cam {
+            tilt: 0.0,
             lat: 10.0,
             lon: 20.0,
             heading: 30.0,
@@ -355,6 +384,7 @@ mod bounds_tests {
     #[test]
     fn pan_preserves_camera_bounds_near_poles_and_dateline() {
         let mut cam = Cam {
+            tilt: 0.0,
             lat: 89.0,
             lon: 179.0,
             heading: 0.0,
@@ -370,6 +400,7 @@ mod bounds_tests {
     fn screen_center_picks_camera_location() {
         let rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
         let cam = Cam {
+            tilt: 0.0,
             lat: -15.0,
             lon: -50.0,
             heading: 70.0,
@@ -399,6 +430,7 @@ mod projection_tests {
                     Vec2::new(800.0 * aspect as f32, 800.0),
                 );
                 let basis = Cam {
+                    tilt: 0.0,
                     lat,
                     lon,
                     heading,
@@ -429,6 +461,7 @@ mod projection_tests {
         let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
         for heading in [0.0, 90.0] {
             let basis = Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 heading,
@@ -453,6 +486,7 @@ mod projection_tests {
         let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
         for alt in [MIN_CAMERA_ALTITUDE_KM, MAX_CAMERA_ALTITUDE_KM] {
             let basis = Cam {
+                tilt: 0.0,
                 lat: 40.0,
                 lon: 170.0,
                 heading: 75.0,
@@ -496,6 +530,7 @@ mod body_control_tests {
     #[test]
     fn body_orbit_wraps_and_clamps_without_ground_pan() {
         let mut cam = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 170.0,
             alt: 14_000.0,
@@ -509,6 +544,7 @@ mod body_control_tests {
     #[test]
     fn slider_round_trip_and_endpoints() {
         let mut cam = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             alt: 14_000.0,
@@ -522,5 +558,91 @@ mod body_control_tests {
         assert!((cam.alt - MIN_CAMERA_ALTITUDE_KM).abs() < 1e-12);
         cam.set_zoom_fraction(2.0);
         assert!((cam.alt - MAX_CAMERA_ALTITUDE_KM).abs() < 1e-8);
+    }
+}
+
+#[cfg(test)]
+mod tilt_tests {
+    use super::*;
+    #[test]
+    fn tilted_picks_project_back_without_changing_camera_position_or_horizon_rules() {
+        let rect = Rect::from_min_size(Pos2::new(20.0, 30.0), emath::vec2(1000.0, 800.0));
+        for model in EarthModel::ALL {
+            for (lat, lon) in [(0.0, 0.0), (89.9, 179.9), (-70.0, -179.9)] {
+                let camera = Cam {
+                    lat,
+                    lon,
+                    alt: 100.0,
+                    heading: 35.0,
+                    tilt: 0.0,
+                };
+                let origin = camera.basis_for_model(1.25, model).c;
+                for tilt in [0.0, 30.0, 65.0, 85.0] {
+                    let tilted = Cam { tilt, ..camera };
+                    let basis = tilted.basis_for_model(1.25, model);
+                    assert_eq!(basis.c, origin);
+                    assert!((basis.dir(0.0, 0.0).length_squared() - 1.0).abs() < 1e-12);
+                    for x in [0.25, 0.5, 0.75] {
+                        for y in [0.25, 0.5, 0.75] {
+                            let cursor = Pos2::new(
+                                rect.left() + rect.width() * x,
+                                rect.top() + rect.height() * y,
+                            );
+                            if let Some((lat, lon)) = basis.pick(rect, cursor) {
+                                let projected = basis
+                                    .project(basis.surface_position(lat, lon), rect)
+                                    .unwrap();
+                                assert!(projected.distance(cursor) < 0.01);
+                            }
+                        }
+                    }
+                    assert!(
+                        basis
+                            .project(-basis.surface_position(lat, lon), rect)
+                            .is_none()
+                    );
+                }
+                let sky = Cam {
+                    alt: 14000.0,
+                    tilt: MAX_TILT_DEG,
+                    ..camera
+                }
+                .basis_for_model(1.25, model);
+                assert!(sky.pick(rect, rect.center()).is_none());
+            }
+        }
+    }
+    #[test]
+    fn tilt_bounds_reset_and_cursor_anchoring_work_for_both_models() {
+        let rect = Rect::from_min_size(Pos2::ZERO, emath::vec2(800.0, 600.0));
+        for model in EarthModel::ALL {
+            let mut camera = Cam {
+                lat: 20.0,
+                lon: 170.0,
+                alt: 100.0,
+                heading: 35.0,
+                tilt: 45.0,
+            };
+            let cursor = rect.center();
+            let before = camera
+                .basis_for_model(4.0 / 3.0, model)
+                .pick(rect, cursor)
+                .unwrap();
+            camera.zoom_at_for_model(0.7, Some(cursor), rect, 4.0 / 3.0, model);
+            let after = camera
+                .basis_for_model(4.0 / 3.0, model)
+                .pick(rect, cursor)
+                .unwrap();
+            assert!(model.distance_km(before, after) < 0.001);
+            camera.tilt_by(1000.0);
+            assert_eq!(camera.tilt, MAX_TILT_DEG);
+            camera.tilt_by(-1000.0);
+            assert_eq!(camera.tilt, 0.0);
+            camera.tilt = f64::NAN;
+            assert_eq!(camera.clamped_tilt(), 0.0);
+            camera.tilt_by(45.0);
+            camera.reset_view();
+            assert_eq!((camera.heading, camera.tilt), (0.0, 0.0));
+        }
     }
 }
