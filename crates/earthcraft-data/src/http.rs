@@ -88,9 +88,10 @@ pub(crate) async fn body(
     Ok(bytes)
 }
 pub(crate) async fn parse_json(bytes: Vec<u8>) -> Result<serde_json::Value, crate::Error> {
-    tokio::task::spawn_blocking(move || serde_json::from_slice(&bytes))
-        .await?
-        .map_err(Into::into)
+    crate::cpu::run(crate::cpu::Service::Features, move || {
+        Ok(serde_json::from_slice(&bytes)?)
+    })
+    .await
 }
 /// Fetch boundary JSON with bounded retries and disk-cache fallback.
 pub(crate) async fn fetch_json(url: &str) -> Result<serde_json::Value, crate::Error> {
@@ -107,10 +108,10 @@ async fn fetch_json_at(url: &str, path: PathBuf) -> Result<serde_json::Value, cr
     for _ in 0..JSON_REQUEST_ATTEMPTS {
         match body(client.get(url), MAX_JSON_RESPONSE_BYTES).await {
             Ok(bytes) => {
-                let parsed = tokio::task::spawn_blocking(move || {
-                    serde_json::from_slice::<serde_json::Value>(&bytes).map(|value| (value, bytes))
+                let parsed = crate::cpu::run(crate::cpu::Service::Features, move || {
+                    Ok((serde_json::from_slice::<serde_json::Value>(&bytes)?, bytes))
                 })
-                .await?;
+                .await;
                 match parsed {
                     Ok((value, bytes)) => {
                         if let Some(dir) = path.parent() {
@@ -146,6 +147,32 @@ mod tests {
             }
         });
         (url, job)
+    }
+    #[test]
+    fn json_parsing_does_not_wait_for_tokio_blocking_io() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let (started, start) = std::sync::mpsc::channel();
+        let (release, wait) = std::sync::mpsc::channel();
+        let blocked = runtime.spawn_blocking(move || {
+            started.send(()).unwrap();
+            wait.recv().unwrap();
+        });
+        start.recv_timeout(Duration::from_secs(5)).unwrap();
+        let parsed = runtime.block_on(async {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                parse_json(br#"{"ok":true}"#.to_vec()),
+            )
+            .await
+        });
+        release.send(()).unwrap();
+        runtime.block_on(blocked).unwrap();
+        assert_eq!(parsed.unwrap().unwrap()["ok"], true);
     }
     #[tokio::test]
     async fn body_caps_reads_and_rejects_http_errors() {
