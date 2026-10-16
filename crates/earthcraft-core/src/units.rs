@@ -38,7 +38,7 @@ impl DistanceUnits {
             Self::Metric => fmt_dist(km),
             Self::Imperial => {
                 let miles = km / KM_PER_MILE;
-                if miles < 1.0 {
+                if (miles * FEET_PER_MILE).round() < FEET_PER_MILE {
                     format!("{:.0} ft", miles * FEET_PER_MILE)
                 } else {
                     format!("{miles:.2} mi")
@@ -51,7 +51,7 @@ impl DistanceUnits {
             Self::Metric => fmt_alt(km),
             Self::Imperial => {
                 let miles = km / KM_PER_MILE;
-                if miles < 1.0 {
+                if (miles * FEET_PER_MILE).round() < FEET_PER_MILE {
                     format!("{:.0} ft", miles * FEET_PER_MILE)
                 } else {
                     format!("{miles:.0} mi")
@@ -116,6 +116,17 @@ fn locale_region(locale: &str) -> Option<unic_langid::subtags::Region> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rounded_small_units_promote_at_the_display_boundary() {
+        assert_eq!(DistanceUnits::Metric.distance(0.9994), "999 m");
+        assert_eq!(DistanceUnits::Metric.distance(0.9996), "1.00 km");
+        assert_eq!(DistanceUnits::Metric.altitude(0.9996), "1 km");
+        let below = (FEET_PER_MILE - 0.6) / FEET_PER_MILE * KM_PER_MILE;
+        let rounds_up = (FEET_PER_MILE - 0.4) / FEET_PER_MILE * KM_PER_MILE;
+        assert_eq!(DistanceUnits::Imperial.distance(below), "5279 ft");
+        assert_eq!(DistanceUnits::Imperial.distance(rounds_up), "1.00 mi");
+        assert_eq!(DistanceUnits::Imperial.altitude(rounds_up), "1 mi");
+    }
     #[test]
     fn region_not_ui_language_selects_default() {
         for locale in [
