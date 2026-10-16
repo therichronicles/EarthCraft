@@ -56,12 +56,20 @@ impl Explorer {
 }
 fn open_url(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    let result = windows_url_command(url).spawn();
     #[cfg(target_os = "macos")]
     let result = Command::new("open").arg(url).spawn();
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     let result = Command::new("xdg-open").arg(url).spawn();
     result.map(|_| ()).map_err(|e| e.to_string())
+}
+
+// Pass the URL directly to the Windows shell application, never to cmd's parser.
+#[cfg(any(test, target_os = "windows"))]
+fn windows_url_command(url: &str) -> Command {
+    let mut command = Command::new("explorer.exe");
+    command.arg(url);
+    command
 }
 
 #[cfg(target_os = "windows")]
@@ -298,5 +306,16 @@ mod tests {
                 Some(std::ffi::OsStr::new(text))
             )]
         );
+    }
+}
+
+#[cfg(test)]
+mod url_tests {
+    #[test]
+    fn windows_url_preserves_query_separators_as_one_data_argument() {
+        let url = "https://www.openstreetmap.org/?mlat=51.5&mlon=-0.1#map=12/51.5/-0.1";
+        let command = super::windows_url_command(url);
+        assert_eq!(command.get_program(), "explorer.exe");
+        assert_eq!(command.get_args().collect::<Vec<_>>(), [url]);
     }
 }
