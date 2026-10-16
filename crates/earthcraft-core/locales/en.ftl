@@ -596,3 +596,16 @@ sky-short-credit = Sky: NASA SVS · Gaia DR2 (ESA/Gaia/DPAC)
 sky-combined-credit = { $map }
     { $sky }
 sky-software-credits = Celestial transform software licenses
+
+roads-unnamed-label = Unnamed road
+vessels-unnamed-label = AIS vessel
+live-clouds-error =
+    { $cached ->
+        [true] Clouds update failed (showing cached image): { $error }
+       *[false] Clouds update failed: { $error }
+    }
+live-radar-error =
+    { $cached ->
+        [true] Radar update failed (showing cached image): { $error }
+       *[false] Radar update failed: { $error }
+    }

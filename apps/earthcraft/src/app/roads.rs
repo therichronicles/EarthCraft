@@ -57,7 +57,15 @@ impl RoadOverlay {
             let text = lang.format(
                 "roads-hover-tooltip",
                 &[
-                    ("name", road.name.as_str().into()),
+                    (
+                        "name",
+                        if road.name.is_empty() {
+                            lang.text("roads-unnamed-label")
+                        } else {
+                            road.name.as_str()
+                        }
+                        .into(),
+                    ),
                     ("kind", road.kind.as_str().into()),
                     ("state", state.into()),
                 ],

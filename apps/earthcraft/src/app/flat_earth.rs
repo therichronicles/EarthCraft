@@ -164,7 +164,7 @@ impl App {
             painter.text(
                 rect.center(),
                 Align2::CENTER_CENTER,
-                self.lang.text("flat-earth-image-error"),
+                Lang::En.text("flat-earth-image-error"),
                 FontId::proportional(18.0),
                 Color32::WHITE,
             );

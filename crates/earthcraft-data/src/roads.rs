@@ -213,7 +213,7 @@ fn parse_overpass(json: &serde_json::Value) -> Vec<Road> {
             let name = tags["name"]
                 .as_str()
                 .or_else(|| tags["ref"].as_str())
-                .unwrap_or("(sem nome)")
+                .unwrap_or("")
                 .chars()
                 .take(100)
                 .collect();

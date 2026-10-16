@@ -130,13 +130,23 @@ impl LiveMaps {
         let mut lines = Vec::new();
         if clouds {
             if let Some(err) = &self.cloud_error {
-                let failed = lang.text("live-clouds-failed");
-                let cached = if self.cloud.is_some() {
-                    lang.text("live-cached-image")
-                } else {
-                    ""
-                };
-                lines.push(format!("{failed}{cached}: {err}"));
+                lines.push(
+                    Lang::En.format(
+                        "live-clouds-error",
+                        &[
+                            (
+                                "cached",
+                                if self.cloud.is_some() {
+                                    "true"
+                                } else {
+                                    "false"
+                                }
+                                .into(),
+                            ),
+                            ("error", err.as_str().into()),
+                        ],
+                    ),
+                );
             } else if self.cloud.is_some() {
                 lines.push(lang.text("live-clouds-ok").to_owned());
             } else {
@@ -145,13 +155,23 @@ impl LiveMaps {
         }
         if radar {
             if let Some(err) = &self.radar_error {
-                let failed = lang.text("live-radar-failed");
-                let cached = if self.radar.is_some() {
-                    lang.text("live-cached-image")
-                } else {
-                    ""
-                };
-                lines.push(format!("{failed}{cached}: {err}"));
+                lines.push(
+                    Lang::En.format(
+                        "live-radar-error",
+                        &[
+                            (
+                                "cached",
+                                if self.radar.is_some() {
+                                    "true"
+                                } else {
+                                    "false"
+                                }
+                                .into(),
+                            ),
+                            ("error", err.as_str().into()),
+                        ],
+                    ),
+                );
             } else if self.radar.is_some() {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -168,4 +188,25 @@ impl LiveMaps {
 }
 fn refresh_due(last: Option<Instant>, loaded: bool, interval: Duration) -> bool {
     last.is_none_or(|t| t.elapsed() >= if loaded { interval } else { RETRY_INTERVAL })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn error_statuses_are_whole_english_messages_in_both_ui_languages() {
+        let maps = LiveMaps {
+            cloud_error: Some("cloud network failure".into()),
+            radar_error: Some("radar network failure".into()),
+            cloud: Some(RgbaImage::new(1, 1)),
+            ..Default::default()
+        };
+        let status = maps.status(true, true, Lang::En);
+        assert_eq!(maps.status(true, true, Lang::PtBr), status);
+        assert!(
+            status.contains("cloud network failure") && status.contains("radar network failure")
+        );
+        assert!(status.contains("showing cached image"));
+        assert!(maps.status(false, false, Lang::PtBr).is_empty());
+    }
 }
