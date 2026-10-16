@@ -9,14 +9,14 @@
   "finish-args": ["--share=network", "--share=ipc", "--socket=wayland", "--socket=fallback-x11", "--device=dri", "--device=input", "--filesystem=host", "--env=EARTHCRAFT_UPDATE_MODE=manual"],
   "build-options": {
     "append-path": "/usr/lib/sdk/rust-stable/bin",
-    "env": {"CARGO_HOME": "/run/build/earthcraft/cargo"}
+    "env": {"CARGO_HOME": "/run/build/earthcraft/cargo", "CARGO_TARGET_DIR": "/run/ccache/cargo-target"}
   },
   "modules": [{
     "name": "earthcraft",
     "buildsystem": "simple",
     "build-commands": [
       "cargo build -p earthcraft --release --no-default-features --locked --offline",
-      "install -Dm755 target/release/earthcraft /app/bin/earthcraft",
+      "install -Dm755 \"$CARGO_TARGET_DIR/release/earthcraft\" /app/bin/earthcraft",
       "install -Dm644 assets/packaging/icon_256.png /app/share/icons/hicolor/256x256/apps/com.theri.earthcraft.png",
       "install -Dm644 LICENSE /app/share/licenses/earthcraft/LICENSE",
       "install -Dm644 packaging/earthcraft.desktop /app/share/applications/com.theri.earthcraft.desktop",

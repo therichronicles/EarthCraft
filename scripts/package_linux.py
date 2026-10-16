@@ -109,10 +109,13 @@ def flatpak(archive, architecture, temporary):
     # The maintained builder supports GNOME 49's appstreamcli compose command;
     # Ubuntu 22.04's native builder still requires the removed appstream-compose.
     # The sandboxed builder invokes host Flatpak through a D-Bus session.
+    state = Path(os.environ.get("EARTHCRAFT_FLATPAK_CACHE", str(temporary / "flatpak-state")))
+    state.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ, GSETTINGS_BACKEND="memory")
     subprocess.run(["dbus-run-session", "--", "flatpak", "run", "org.flatpak.Builder",
-                    "--system", "--force-clean",
-                    f"--state-dir={temporary / 'flatpak-state'}", f"--arch={architecture}",
-                    f"--repo={repository}", str(temporary / "flatpak-build"), str(manifest_path)], check=True)
+                    "--user", "--force-clean", "--ccache",
+                    f"--state-dir={state}", f"--arch={architecture}",
+                    f"--repo={repository}", str(temporary / "flatpak-build"), str(manifest_path)], check=True, env=env)
     subprocess.run(["flatpak", "build-bundle", f"--arch={architecture}",
                     "--runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo",
                     str(repository), str(archive), APP_ID, "stable"], check=True)
