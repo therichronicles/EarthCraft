@@ -313,6 +313,10 @@ impl TileCache {
     }
     /// Snapshot of encoded file bytes in the managed provider directories.
     /// Filesystem allocation overhead and other application data are excluded.
+    /// Latest bounded diagnostic; optional persistence failures never discard ready imagery.
+    pub fn disk_error(&self) -> Option<String> {
+        self.disk.latest_error()
+    }
     pub async fn disk_usage_bytes(&self) -> Result<u64, crate::Error> {
         self.disk.usage_bytes().await
     }
@@ -380,8 +384,10 @@ async fn worker(
                 // not delay imagery readiness. Persistence keeps its original epoch.
                 cache.complete(key, Ok(tile));
                 repaint();
-                if let Some((path, bytes)) = persistence {
-                    let _ = cache.disk.write_owned(&path, bytes, epoch).await;
+                if let Some((path, bytes)) = persistence
+                    && cache.disk.write_owned(&path, bytes, epoch).await.is_err()
+                {
+                    repaint();
                 }
             }
             Err(error) => {

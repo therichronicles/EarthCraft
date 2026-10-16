@@ -596,3 +596,5 @@ sky-short-credit = Sky: NASA SVS · Gaia DR2 (ESA/Gaia/DPAC)
 sky-combined-credit = { $map }
     { $sky }
 sky-software-credits = Celestial transform software licenses
+
+settings-cache-persistence-error = Disk cache unavailable: { $error }
