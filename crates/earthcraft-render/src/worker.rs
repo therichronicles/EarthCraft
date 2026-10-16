@@ -105,6 +105,23 @@ impl<T: Send + 'static> RenderWorker<T> {
                     let request = pending.request;
                     // Rasterization holds no mailbox lock. Admission is synchronized below.
                     let frame = render(&request, buffer);
+                    {
+                        let mut mailbox = worker.mailbox.lock().unwrap();
+                        if mailbox.stopped {
+                            return;
+                        }
+                        if mailbox
+                            .pending
+                            .as_ref()
+                            .is_some_and(|next| next.request.presentation != request.presentation)
+                        {
+                            mailbox.active = false;
+                            mailbox.spare = Some(frame.pixels);
+                            drop(mailbox);
+                            repaint();
+                            continue;
+                        }
+                    }
                     let prepared = prepare(&request, &frame.pixels);
                     let mut mailbox = worker.mailbox.lock().unwrap();
                     mailbox.active = false;
@@ -156,13 +173,14 @@ impl<T: Send + 'static> RenderWorker<T> {
     }
 
     pub fn take_completed(&self, presentation: u64) -> Option<RenderedFrame<T>> {
-        self.shared
-            .mailbox
-            .lock()
-            .unwrap()
-            .completed
-            .take()
-            .filter(|frame| frame.request.presentation == presentation)
+        let mut mailbox = self.shared.mailbox.lock().unwrap();
+        let frame = mailbox.completed.take()?;
+        if frame.request.presentation == presentation {
+            Some(frame)
+        } else {
+            mailbox.spare = Some(frame.pixels);
+            None
+        }
     }
 
     pub fn is_idle(&self) -> bool {
