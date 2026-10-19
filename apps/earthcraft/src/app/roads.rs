@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[derive(Default)]
 pub(super) struct RoadOverlay {
-    pub service: earthcraft_data::roads::LiveRoads,
+    pub(super) service: earthcraft_data::roads::LiveRoads,
     projected: Option<Arc<Vec<earthcraft_render::live_layers::ProjectedRoad>>>,
     shapes: Vec<egui::Shape>,
 }
@@ -12,7 +12,7 @@ impl RoadOverlay {
     pub(super) fn invalidate_text(&mut self) {
         self.projected = None;
     }
-    pub fn draw(
+    pub(super) fn draw(
         &mut self,
         painter: &egui::Painter,
         geometry: &earthcraft_render::live_layers::LiveGeometry,
@@ -57,7 +57,15 @@ impl RoadOverlay {
             let text = lang.format(
                 "roads-hover-tooltip",
                 &[
-                    ("name", road.name.as_str().into()),
+                    (
+                        "name",
+                        if road.name.is_empty() {
+                            lang.text("roads-unnamed-label")
+                        } else {
+                            road.name.as_str()
+                        }
+                        .into(),
+                    ),
                     ("kind", road.kind.as_str().into()),
                     ("state", state.into()),
                 ],

@@ -24,6 +24,32 @@ impl App {
                         self.fly_to(self.cam.lat, self.cam.lon, 14_000.0);
                     }
                 });
+                if self.explorer.active == earthcraft_core::body::Body::Earth {
+                    if ui
+                        .add(
+                            egui::Slider::new(
+                                &mut self.cam.tilt,
+                                0.0..=earthcraft_core::camera::MAX_TILT_DEG,
+                            )
+                            .text(lg.text("navigation-tilt-label"))
+                            .suffix("°"),
+                        )
+                        .on_hover_text(lg.text("navigation-tilt-help"))
+                        .changed()
+                    {
+                        self.fly = None;
+                        self.touch();
+                    }
+                    if ui
+                        .button(lg.text("navigation-reset-view-action"))
+                        .on_hover_text(lg.text("navigation-reset-view-help"))
+                        .clicked()
+                    {
+                        self.fly = None;
+                        self.cam.reset_view();
+                        self.touch();
+                    }
+                }
                 ui.checkbox(
                     &mut self.auto_rotate,
                     lg.text("layers-auto-rotation-toggle"),
@@ -142,6 +168,7 @@ impl App {
         ui.checkbox(&mut self.show_help, lg.text("controls-help-toggle"));
         if self.show_help {
             ui.label(lg.text("controls-help-text"));
+            ui.label(lg.text("controls-tilt-help-text"));
         }
         if shot {
             self.save_screenshot();

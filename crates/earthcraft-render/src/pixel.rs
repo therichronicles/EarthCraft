@@ -208,6 +208,7 @@ mod tests {
         ] {
             for longitude in [-179.9, 0.0, 179.9] {
                 let basis = Cam {
+                    tilt: 0.0,
                     lat: latitude,
                     lon: longitude,
                     heading: 25.0,
@@ -251,6 +252,7 @@ mod tests {
             let (lat, lon) =
                 model.destination((0.5, 0.0), 90.0, threshold_m * fraction / METERS_PER_KM);
             let basis = Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 heading: 0.0,

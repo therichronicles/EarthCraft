@@ -49,6 +49,7 @@ jobs:
           filters: |
             release:
               - '.github/workflows/release.yml'
+              - '.github/actions/release-tools/**'
               - 'scripts/package_*.py'
               - 'scripts/test_package_*.py'
               - 'packaging/**'

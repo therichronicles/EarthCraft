@@ -257,28 +257,7 @@ fn original_dynamic_messages_preserve_output_except_requested_pluralization() {
     }
 }
 
-#[test]
-fn application_and_data_message_references_exist() {
-    fn check(path: &std::path::Path, keys: &BTreeMap<String, BTreeSet<String>>) {
-        if path.is_dir() {
-            for entry in std::fs::read_dir(path).unwrap() {
-                check(&entry.unwrap().path(), keys);
-            }
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            let source = std::fs::read_to_string(path).unwrap();
-            for method in [".text(\"", ".format(\""] {
-                for rest in source.split(method).skip(1) {
-                    let id = rest.split('"').next().unwrap();
-                    assert!(keys.contains_key(id), "missing {id} in {}", path.display());
-                }
-            }
-        }
-    }
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let keys = schema(EN);
-    check(&root.join("apps/earthcraft/src"), &keys);
-    check(&root.join("crates/earthcraft-data/src"), &keys);
-}
+mod references;
 
 #[test]
 fn explorer_labels_follow_selected_language_and_keep_variable_interpolation() {

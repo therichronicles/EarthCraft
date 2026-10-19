@@ -197,7 +197,9 @@ impl App {
             live_layers: (self.show_roads
                 || self.show_traffic
                 || self.show_vessels
-                || self.show_satellites)
+                || self.show_satellites
+                || self.show_clouds
+                || self.show_weather)
                 .then(|| self.live_layer_input(basis, rect, self.cam, pixels_per_point)),
             overlays: Some(earthcraft_render::overlays::OverlayInput {
                 view: earthcraft_render::overlays::OverlayView {
@@ -214,6 +216,9 @@ impl App {
     }
 
     pub(super) fn poll_render(&mut self, presentation: u64, ctx: &egui::Context) {
+        if let Some(error) = self.renderer.worker.take_error() {
+            self.status = error;
+        }
         let Some(frame) = self.renderer.worker.take_completed(presentation) else {
             return;
         };
@@ -306,6 +311,7 @@ mod tests {
     #[test]
     fn picking_tracks_displayed_camera_while_new_view_is_pending() {
         let shown = Cam {
+            tilt: 0.0,
             lat: 20.0,
             lon: 30.0,
             heading: 0.0,

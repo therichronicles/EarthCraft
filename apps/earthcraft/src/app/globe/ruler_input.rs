@@ -154,6 +154,7 @@ mod tests {
         let ctx = egui::Context::default();
         let rect = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 600.0));
         let basis = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 0.0,
@@ -207,6 +208,7 @@ mod tests {
         let ctx = egui::Context::default();
         let rect = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 600.0));
         let basis = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 0.0,

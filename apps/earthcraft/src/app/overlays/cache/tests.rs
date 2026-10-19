@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 fn scene() -> (OverlayView, OverlayStyle, BoundaryData) {
     let cam = Cam {
+        tilt: 0.0,
         lat: 0.0,
         lon: 0.0,
         heading: 0.0,
@@ -127,6 +128,7 @@ fn camera_viewport_altitude_density_layers_language_and_map_scale_invalidate() {
             (
                 OverlayView {
                     basis: Cam {
+                        tilt: 0.0,
                         lat: 0.0,
                         lon: 0.0,
                         heading: 30.0,
@@ -282,6 +284,7 @@ fn label_limit_remains_five_hundred() {
         view.rect = Rect::from_min_size(Pos2::ZERO, vec2(50_000.0, 50_000.0));
         view.altitude_km = 14_000.0;
         view.basis = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 0.0,

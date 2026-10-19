@@ -91,3 +91,11 @@ e os textos originais. Execute os testes de core e confira a troca de idioma na
 interface. Nomes geográficos continuam vindos dos serviços. Logs e mensagens de erro do
 aplicativo usam inglês, inclusive quando a interface está em português; detalhes
 de erros externos são preservados.
+
+Reference checks parse Rust syntax in app, data and core sources. They cover
+rustfmt-wrapped calls, literal message IDs inside match expressions, static
+`*_IDS` tables and literal named-argument arrays passed to `Lang::format`.
+Production references are checked against the catalog schema; deliberately
+invalid test fixtures are excluded. Dynamic IDs/argument arrays still need
+explicit domain fixtures. `syn` is a test-only dependency; runtime localization
+is unchanged.

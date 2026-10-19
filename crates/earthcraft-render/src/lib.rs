@@ -65,19 +65,18 @@ struct Local<'a, F> {
 }
 enum LocalTile {
     Ready(Arc<Tile>),
-    Pending,
+    Pending(f32),
     Absent(f32),
 }
 impl<F: Fn(TileKey) -> Lookup> Local<'_, F> {
     fn tile_color(&mut self, k: TileKey, dist: f32, u: f64, v: f64) -> Option<Vec4> {
         match self.map.entry(k).or_insert_with(|| match (self.lookup)(k) {
             Lookup::Ready(tile) => LocalTile::Ready(tile),
-            Lookup::Pending => LocalTile::Pending,
+            Lookup::Pending => LocalTile::Pending(dist),
             Lookup::Absent => LocalTile::Absent(dist),
         }) {
             LocalTile::Ready(tile) => Some(tile.sample(u, v)),
-            LocalTile::Pending => None,
-            LocalTile::Absent(nearest) => {
+            LocalTile::Pending(nearest) | LocalTile::Absent(nearest) => {
                 *nearest = nearest.min(dist);
                 None
             }
@@ -208,10 +207,10 @@ pub struct RenderedView {
 impl RenderedView {
     /// New misses and already-pending dependencies, in coarse-first order.
     pub fn required_tiles(&self) -> Vec<TileKey> {
-        let mut keys = self.requests.clone();
+        let mut keys = self.waiting.clone();
         let admitted: std::collections::HashSet<_> = keys.iter().copied().collect();
         keys.extend(
-            self.waiting
+            self.requests
                 .iter()
                 .copied()
                 .filter(|key| !admitted.contains(key)),
@@ -292,7 +291,12 @@ fn render_pixels_into(
     let row_bytes = w * RGBA_CHANNELS;
     let rays = RayCaster::new(w, h, basis);
     let unit_sphere = rays.uses_unit_sphere();
-    let per_batch: Vec<Vec<(TileKey, Option<f32>)>> = buf
+    struct MissingTile {
+        key: TileKey,
+        distance: f32,
+        absent: bool,
+    }
+    let per_batch: Vec<Vec<MissingTile>> = buf
         .par_chunks_mut(row_bytes * ROWS_PER_TILE_BATCH)
         .enumerate()
         .map(|(batch, rows)| {
@@ -329,26 +333,43 @@ fn render_pixels_into(
                 .into_iter()
                 .filter_map(|(key, tile)| match tile {
                     LocalTile::Ready(_) => None,
-                    LocalTile::Pending => Some((key, None)),
-                    LocalTile::Absent(distance) => Some((key, Some(distance))),
+                    LocalTile::Pending(distance) => Some(MissingTile {
+                        key,
+                        distance,
+                        absent: false,
+                    }),
+                    LocalTile::Absent(distance) => Some(MissingTile {
+                        key,
+                        distance,
+                        absent: true,
+                    }),
                 })
                 .collect()
         })
         .collect();
 
     let mut misses: HashMap<TileKey, f32> = HashMap::new();
-    let mut waiting = std::collections::HashSet::new();
-    for (k, distance) in per_batch.into_iter().flatten() {
-        waiting.insert(k);
-        if let Some(d) = distance {
-            let e = misses.entry(k).or_insert(f32::MAX);
-            *e = e.min(d);
+    let mut waiting: HashMap<TileKey, f32> = HashMap::new();
+    for tile in per_batch.into_iter().flatten() {
+        let distance = waiting.entry(tile.key).or_insert(f32::MAX);
+        *distance = distance.min(tile.distance);
+        if tile.absent {
+            let distance = misses.entry(tile.key).or_insert(f32::MAX);
+            *distance = distance.min(tile.distance);
         }
     }
+    let mut waiting: Vec<_> = waiting.into_iter().collect();
+    waiting.sort_by(|a, b| {
+        unkey(a.0)
+            .1
+            .cmp(&unkey(b.0).1)
+            .then(a.1.total_cmp(&b.1))
+            .then(a.0.cmp(&b.0))
+    });
     (
         buf,
         misses.into_iter().collect(),
-        waiting.into_iter().collect(),
+        waiting.into_iter().map(|tile| tile.0).collect(),
     )
 }
 

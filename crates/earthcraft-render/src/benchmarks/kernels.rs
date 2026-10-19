@@ -19,6 +19,7 @@ fn views(model: EarthModel) -> Vec<RayCaster> {
             WIDTH_PX,
             HEIGHT_PX,
             &Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 alt,
@@ -131,6 +132,7 @@ fn earth_model_raster_capture() {
         .enumerate()
         {
             let basis = Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 alt,

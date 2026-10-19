@@ -259,6 +259,7 @@ mod native_fallback_tests {
             capacity_warning: false,
         };
         let cam = earthcraft_core::camera::Cam {
+            tilt: 0.0,
             lat: -15.0,
             lon: -50.0,
             heading: 25.0,

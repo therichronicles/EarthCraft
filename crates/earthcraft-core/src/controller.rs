@@ -9,6 +9,7 @@ pub const MIN_SENSITIVITY: f64 = 0.1;
 pub const MAX_SENSITIVITY: f64 = 4.0;
 const PAN_VIEW_HEIGHTS_PER_SEC: f64 = 0.5;
 const ROTATION_DEG_PER_SEC: f64 = 90.0;
+const TILT_DEG_PER_SEC: f64 = 60.0;
 const ZOOM_EXPONENT_PER_SEC: f64 = 1.0;
 const MAX_STEP_SECS: f64 = 0.1;
 
@@ -17,6 +18,7 @@ const MAX_STEP_SECS: f64 = 0.1;
 pub enum ControllerAction {
     None,
     North,
+    Reset,
     Ruler,
     Places,
     Settings,
@@ -24,9 +26,10 @@ pub enum ControllerAction {
     Placemark,
 }
 impl ControllerAction {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::None,
         Self::North,
+        Self::Reset,
         Self::Ruler,
         Self::Places,
         Self::Settings,
@@ -36,6 +39,7 @@ impl ControllerAction {
     pub fn label_id(self) -> &'static str {
         match self {
             Self::None => "controllers-action-none",
+            Self::Reset => "navigation-reset-view-action",
             Self::North => "navigation-reset-north-action",
             Self::Ruler => "ruler-enable-toggle",
             Self::Places => "sidebar-places-title",
@@ -94,21 +98,37 @@ fn finite_or(value: f64, fallback: f64) -> f64 {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ControllerProfile {
-    /// Pan horizontal, pan vertical, heading, zoom out, zoom in.
-    pub axes: [AxisBinding; 5],
+    /// Pan horizontal, pan vertical, heading, zoom out, zoom in, tilt.
+    #[serde(deserialize_with = "deserialize_axes")]
+    pub axes: [AxisBinding; 6],
     pub buttons: [ControllerAction; BUTTON_COUNT],
+}
+fn deserialize_axes<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<[AxisBinding; 6], D::Error> {
+    let axes = Vec::<AxisBinding>::deserialize(deserializer)?;
+    if axes.len() != 5 && axes.len() != 6 {
+        return Err(serde::de::Error::custom(
+            "expected five legacy or six axis bindings",
+        ));
+    }
+    let mut result = ControllerProfile::default().axes;
+    for (target, binding) in result.iter_mut().zip(axes) {
+        *target = binding;
+    }
+    Ok(result)
 }
 impl Default for ControllerProfile {
     fn default() -> Self {
         let mut buttons = [ControllerAction::None; BUTTON_COUNT];
         buttons[0] = ControllerAction::Placemark;
         buttons[1] = ControllerAction::Cancel;
-        buttons[2] = ControllerAction::North;
+        buttons[2] = ControllerAction::Reset;
         buttons[3] = ControllerAction::Ruler;
         buttons[8] = ControllerAction::Places;
         buttons[9] = ControllerAction::Settings;
         Self {
-            axes: [Some(0), Some(1), Some(2), Some(4), Some(5)].map(|input| AxisBinding {
+            axes: [Some(0), Some(1), Some(2), Some(4), Some(5), Some(3)].map(|input| AxisBinding {
                 input,
                 ..Default::default()
             }),
@@ -143,6 +163,7 @@ impl ControllerProfile {
             pan_y: values[1],
             heading: values[2],
             zoom: values[3] - values[4],
+            tilt: values[5],
         }
     }
 }
@@ -176,12 +197,13 @@ pub struct ControllerMotion {
     pub pan_y: f64,
     pub heading: f64,
     pub zoom: f64,
+    pub tilt: f64,
 }
 impl ControllerMotion {
     pub fn is_active(self) -> bool {
         self != Self::default()
     }
-    /// Same camera primitives as mouse/keyboard; current globe camera has no tilt.
+    /// Same validated camera primitives as mouse/keyboard.
     pub fn apply(
         self,
         camera: &mut Cam,
@@ -197,6 +219,9 @@ impl ControllerMotion {
             camera.pan_for_model(dx, dy, viewport_height_points, model);
         } else {
             camera.orbit_body(dx, dy, viewport_height_points);
+        }
+        if earth_model.is_some() {
+            camera.tilt_by(self.tilt * TILT_DEG_PER_SEC * dt);
         }
         camera.heading = wrap_lon(camera.heading + self.heading * ROTATION_DEG_PER_SEC * dt);
         camera.alt = (camera.alt * (self.zoom * ZOOM_EXPONENT_PER_SEC * dt).exp())
@@ -253,6 +278,7 @@ mod tests {
         assert_eq!(binding.deadzone, MAX_DEADZONE);
         assert_eq!(binding.sensitivity, 1.0);
         let mut cam = Cam {
+            tilt: 0.0,
             lat: 89.0,
             lon: 179.0,
             alt: 100.0,
@@ -263,6 +289,7 @@ mod tests {
             pan_y: 1.0,
             heading: 1.0,
             zoom: 1.0,
+            tilt: 1.0,
         };
         motion.apply(
             &mut cam,
@@ -281,5 +308,37 @@ mod tests {
         assert!((-180.0..180.0).contains(&cam.lon));
         assert!((cam.heading - 9.0).abs() < 1e-10);
         assert!((cam.alt - 100.0 * 0.1_f64.exp()).abs() < 1e-10);
+    }
+}
+
+#[cfg(test)]
+mod tilt_tests {
+    use super::*;
+    #[test]
+    fn default_right_y_tilts_without_zoom_or_heading_and_release_stops_motion() {
+        let profile = ControllerProfile::default();
+        let mut state = ControllerState::default();
+        state.axes[3] = 1.0;
+        let motion = profile.motion(&state);
+        assert_eq!((motion.heading, motion.zoom), (0.0, 0.0));
+        assert_eq!(motion.tilt, 1.0);
+        let mut camera = Cam {
+            lat: 0.0,
+            lon: 0.0,
+            heading: 0.0,
+            alt: 100.0,
+            tilt: 0.0,
+        };
+        motion.apply(
+            &mut camera,
+            0.1,
+            600.0,
+            Some(crate::earth_model::EarthModel::Wgs84),
+        );
+        assert_eq!(camera.tilt, 6.0);
+        state.release();
+        assert!(!profile.motion(&state).is_active());
+        motion.apply(&mut camera, 0.1, 600.0, None);
+        assert_eq!(camera.tilt, 6.0);
     }
 }

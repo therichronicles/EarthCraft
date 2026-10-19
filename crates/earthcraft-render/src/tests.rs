@@ -12,6 +12,7 @@ struct ReferenceFrame {
 fn raster_matches_regression_fixtures() {
     let (w, h) = (64, 48);
     let basis = Cam {
+        tilt: 0.0,
         lat: -15.0,
         lon: -50.0,
         heading: 25.0,
@@ -114,6 +115,7 @@ fn batch_references() -> [BatchReference; 6] {
             height: 49,
             provider: Provider::Satellite,
             cam: Cam {
+                tilt: 0.0,
                 lat: -15.0,
                 lon: -50.0,
                 heading: 25.0,
@@ -126,6 +128,7 @@ fn batch_references() -> [BatchReference; 6] {
             height: 51,
             provider: Provider::Streets,
             cam: Cam {
+                tilt: 0.0,
                 lat: 89.9,
                 lon: 179.9,
                 heading: -130.0,
@@ -138,6 +141,7 @@ fn batch_references() -> [BatchReference; 6] {
             height: 47,
             provider: Provider::Topo,
             cam: Cam {
+                tilt: 0.0,
                 lat: -40.0,
                 lon: 179.9,
                 heading: 70.0,
@@ -150,6 +154,7 @@ fn batch_references() -> [BatchReference; 6] {
             height: 9,
             provider: Provider::Wayback,
             cam: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: -180.0,
                 heading: 180.0,
@@ -162,6 +167,7 @@ fn batch_references() -> [BatchReference; 6] {
             height: 7,
             provider: Provider::Satellite,
             cam: Cam {
+                tilt: 0.0,
                 lat: -15.0,
                 lon: -50.0,
                 heading: 25.0,
@@ -174,6 +180,7 @@ fn batch_references() -> [BatchReference; 6] {
             height: 5,
             provider: Provider::Satellite,
             cam: Cam {
+                tilt: 0.0,
                 lat: 89.9,
                 lon: -179.9,
                 heading: -20.0,
@@ -289,6 +296,7 @@ fn reused_buffers_overwrite_all_pixels_and_preserve_allocation() {
 fn celestial_backdrop_changes_only_sky_and_preserves_tile_priorities() {
     let (width, height) = (65, 49);
     let cam = Cam {
+        tilt: 0.0,
         lat: 40.0,
         lon: -100.0,
         heading: 20.0,
@@ -329,4 +337,31 @@ fn celestial_backdrop_changes_only_sky_and_preserves_tile_priorities() {
         }
     }
     assert!(changed > 100);
+}
+
+#[test]
+fn pending_and_absent_tiles_share_coarse_then_center_first_priority() {
+    let case = &batch_references()[0];
+    let cfg = batch_reference_config(case.provider);
+    let basis = case.cam.basis(case.width as f64 / case.height as f64);
+    let (_, _, pending) =
+        render_pixels_tracked(case.width, case.height, &basis, &cfg, &|_| Lookup::Pending);
+    let (pixels, mut distances, absent) =
+        render_pixels_tracked(case.width, case.height, &basis, &cfg, &|_| Lookup::Absent);
+    distances.sort_by(|a, b| {
+        unkey(a.0)
+            .1
+            .cmp(&unkey(b.0).1)
+            .then(a.1.total_cmp(&b.1))
+            .then(a.0.cmp(&b.0))
+    });
+    let expected: Vec<_> = distances.iter().map(|entry| entry.0).collect();
+    assert_eq!(pending, expected);
+    assert_eq!(absent, expected);
+    let frame = RenderedView {
+        pixels,
+        waiting: pending,
+        requests: expected.iter().rev().copied().collect(),
+    };
+    assert_eq!(frame.required_tiles(), expected);
 }

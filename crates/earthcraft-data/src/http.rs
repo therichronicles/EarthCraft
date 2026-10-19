@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::Duration};
 const MAX_CACHE_FILENAME_CHARS: usize = 120;
 const JSON_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const JSON_READ_TIMEOUT: Duration = Duration::from_secs(90);
+const SEARCH_TIMEOUT: Duration = Duration::from_secs(20);
 pub(crate) const JSON_REQUEST_ATTEMPTS: usize = 2;
 pub(crate) const MAX_JSON_RESPONSE_BYTES: u64 = 1 << 30;
 
@@ -66,7 +67,7 @@ pub(crate) fn client(policy: Policy) -> Result<reqwest::Client, crate::Error> {
         Policy::Cloud => builder = builder.timeout(Duration::from_secs(65)),
         Policy::Radar => builder = builder.timeout(Duration::from_secs(12)),
         Policy::Aircraft => builder = builder.timeout(Duration::from_secs(25)),
-        Policy::Search => {}
+        Policy::Search => builder = builder.timeout(SEARCH_TIMEOUT),
     }
     let client = builder.build()?;
     clients.insert(policy, client.clone());
@@ -79,18 +80,19 @@ pub(crate) async fn body(
     let mut response = request.send().await?.error_for_status()?;
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await? {
-        let remaining = (limit as usize).saturating_sub(bytes.len());
-        bytes.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
-        if bytes.len() as u64 >= limit {
-            break;
+        let remaining = limit.saturating_sub(bytes.len() as u64);
+        if chunk.len() as u64 > remaining {
+            return Err(format!("HTTP response exceeds {limit} bytes").into());
         }
+        bytes.extend_from_slice(&chunk);
     }
     Ok(bytes)
 }
 pub(crate) async fn parse_json(bytes: Vec<u8>) -> Result<serde_json::Value, crate::Error> {
-    tokio::task::spawn_blocking(move || serde_json::from_slice(&bytes))
-        .await?
-        .map_err(Into::into)
+    crate::cpu::run(crate::cpu::Service::Features, move || {
+        Ok(serde_json::from_slice(&bytes)?)
+    })
+    .await
 }
 /// Fetch boundary JSON with bounded retries and disk-cache fallback.
 pub(crate) async fn fetch_json(url: &str) -> Result<serde_json::Value, crate::Error> {
@@ -107,10 +109,10 @@ async fn fetch_json_at(url: &str, path: PathBuf) -> Result<serde_json::Value, cr
     for _ in 0..JSON_REQUEST_ATTEMPTS {
         match body(client.get(url), MAX_JSON_RESPONSE_BYTES).await {
             Ok(bytes) => {
-                let parsed = tokio::task::spawn_blocking(move || {
-                    serde_json::from_slice::<serde_json::Value>(&bytes).map(|value| (value, bytes))
+                let parsed = crate::cpu::run(crate::cpu::Service::Features, move || {
+                    Ok((serde_json::from_slice::<serde_json::Value>(&bytes)?, bytes))
                 })
-                .await?;
+                .await;
                 match parsed {
                     Ok((value, bytes)) => {
                         if let Some(dir) = path.parent() {
@@ -147,17 +149,73 @@ mod tests {
         });
         (url, job)
     }
+    #[test]
+    fn json_parsing_does_not_wait_for_tokio_blocking_io() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let (started, start) = std::sync::mpsc::channel();
+        let (release, wait) = std::sync::mpsc::channel();
+        let blocked = runtime.spawn_blocking(move || {
+            started.send(()).unwrap();
+            wait.recv().unwrap();
+        });
+        start.recv_timeout(Duration::from_secs(5)).unwrap();
+        let parsed = runtime.block_on(async {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                parse_json(br#"{"ok":true}"#.to_vec()),
+            )
+            .await
+        });
+        release.send(()).unwrap();
+        runtime.block_on(blocked).unwrap();
+        assert_eq!(parsed.unwrap().unwrap()["ok"], true);
+    }
     #[tokio::test]
     async fn body_caps_reads_and_rejects_http_errors() {
         let (url, job) = server(vec![("200 OK", "hello world")]).await;
         let client = reqwest::Client::builder().no_proxy().build().unwrap();
-        assert_eq!(body(client.get(url), 4).await.unwrap(), b"hell");
+        assert!(
+            body(client.get(url), 4)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("exceeds 4 bytes")
+        );
         job.await.unwrap();
         let (url, job) = server(vec![("500 Server Error", "bad")]).await;
         assert!(matches!(
             body(client.get(url), 100).await,
             Err(crate::Error::Http(_))
         ));
+        job.await.unwrap();
+    }
+    #[tokio::test]
+    async fn body_accepts_exact_limits_and_rejects_chunked_overflow() {
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let (url, job) = server(vec![("200 OK", "four")]).await;
+        assert_eq!(body(client.get(url), 4).await.unwrap(), b"four");
+        job.await.unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let job = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0; 2048];
+            let received = socket.read(&mut request).await.unwrap();
+            assert!(received > 0);
+            socket.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nfour\r\n1\r\n!\r\n0\r\n\r\n").await.unwrap();
+        });
+        assert!(
+            body(client.get(url), 4)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("exceeds 4 bytes")
+        );
         job.await.unwrap();
     }
     #[tokio::test]

@@ -11,6 +11,7 @@ pub struct StartupView {
     pub longitude: f64,
     pub altitude_km: f64,
     pub heading_deg: f64,
+    pub tilt_deg: f64,
 }
 impl Default for StartupView {
     fn default() -> Self {
@@ -19,12 +20,14 @@ impl Default for StartupView {
             longitude: -50.0,
             altitude_km: 14_000.0,
             heading_deg: 0.0,
+            tilt_deg: 0.0,
         }
     }
 }
 impl StartupView {
     pub fn camera(self) -> Cam {
         Cam {
+            tilt: self.tilt_deg,
             lat: self.latitude,
             lon: self.longitude,
             alt: self.altitude_km,
@@ -37,9 +40,17 @@ impl StartupView {
             longitude: camera.lon,
             altitude_km: camera.alt,
             heading_deg: camera.heading,
+            tilt_deg: camera.clamped_tilt(),
         }
     }
     fn apply(&mut self, value: &serde_json::Value) {
+        if let Some(tilt) = value
+            .get("tilt_deg")
+            .and_then(|v| v.as_f64())
+            .filter(|v| v.is_finite())
+        {
+            self.tilt_deg = tilt.clamp(0.0, earthcraft_core::camera::MAX_TILT_DEG);
+        }
         let lat = value
             .get("latitude")
             .and_then(|v| v.as_f64())
@@ -111,5 +122,29 @@ impl NavigationPreferences {
         if let Some(startup) = value.get("startup") {
             self.startup.apply(startup);
         }
+    }
+}
+
+#[cfg(test)]
+mod tilt_tests {
+    use super::*;
+    #[test]
+    fn startup_tilt_round_trips_defaults_and_clamps() {
+        let mut preferences = NavigationPreferences::default();
+        preferences.apply(&serde_json::json!({"startup":{"tilt_deg":45.0}}));
+        let camera = preferences.startup.camera();
+        assert_eq!(camera.tilt, 45.0);
+        assert_eq!(StartupView::from_camera(camera).tilt_deg, 45.0);
+        let mut loaded = NavigationPreferences::default();
+        loaded.apply(&serde_json::to_value(preferences).unwrap());
+        assert_eq!(loaded.startup.tilt_deg, 45.0);
+        loaded.apply(&serde_json::json!({"startup":{"tilt_deg":1000.0}}));
+        assert_eq!(
+            loaded.startup.tilt_deg,
+            earthcraft_core::camera::MAX_TILT_DEG
+        );
+        let mut legacy = NavigationPreferences::default();
+        legacy.apply(&serde_json::json!({"startup":{"heading_deg":90.0}}));
+        assert_eq!(legacy.startup.tilt_deg, 0.0);
     }
 }

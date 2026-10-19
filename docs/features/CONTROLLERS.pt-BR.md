@@ -7,12 +7,11 @@ Configurações → Controles permite usar gamepads/joysticks reconhecidos pelo
 Selecione o dispositivo, ajuste o perfil Explorar, acompanhe entradas ao vivo e
 restaure os padrões. Mouse e teclado continuam disponíveis.
 
-O analógico esquerdo move o globo; o eixo X direito gira a orientação; gatilhos
+O analógico esquerdo move o globo; o eixo X direito gira e o eixo Y inclina a câmera; gatilhos
 esquerdo/direito afastam/aproximam. Sul adiciona um marcador no centro, Leste
-cancela movimento/arraste, Norte orienta para o norte, Oeste alterna medições,
+cancela movimento/arraste, Norte redefine orientação e inclinação, Oeste alterna medições,
 Select abre Lugares e Start abre Configurações. Os nomes seguem posições
-normalizadas, sem pressupor marca de console. A câmera atual não oferece
-inclinação; o eixo Y direito fica disponível para outro vínculo.
+normalizadas, sem pressupor marca de console. A inclinação aplica-se apenas à Terra.
 
 Cada ação de navegação permite escolher um dos seis eixos ou desativá-la, com
 zona morta, inversão, sensibilidade e curva independentes. Eixos compartilhados
@@ -45,3 +44,33 @@ O lockfile mantém libc 0.2.189: o CI do FreeBSD encontrou uma referência de
 nix 0.31.3 a NOTE_PCTRLMASK, removida em libc 0.2.190. Reavaliar quando
 nix/gilrs oferecer uma atualização compatível. Não há alteração de código da
 dependência nem código unsafe no aplicativo.
+
+A inclinação varia de 0° (nadir) a 85° em direção ao horizonte sem mover a câmera.
+Arraste com o botão central ou use o controle do painel Globo. R redefine norte e
+inclinação; N redefine apenas orientação. Voar até um ponto retorna ao nadir.
+A vista inicial salva mantém a inclinação. Perfis antigos mantêm vínculos e
+recebem inclinação no eixo Y direito. O monitor usa linhas fixas para botões.
+
+No macOS, relatórios completos do Nintendo Pro Controller (0x30/0x31,
+modelo 057e:2009) precisam de um decodificador adicional: a entrada HID padrão
+do gilrs não interpreta esses dados específicos do fabricante. Um leitor hidapi
+não exclusivo, em segundo plano, envia eventos normalizados para a mesma fila
+gilrs. Seleção, perfis, vínculos, foco e movimento continuam no adaptador existente.
+Relatórios HID padrão e outros modelos mantêm a entrada nativa do gilrs.
+O leitor solicita a calibração de fábrica/usuário por comandos SPI somente de
+leitura; dados inválidos/indisponíveis usam o intervalo completo de 12 bits.
+Não altera modo de relatório, memória flash ou ativa vibração. Eixos são
+agrupados e transições de botões usam uma fila limitada. Excesso de entradas,
+desconexão ou interrupção dos relatórios libera os controles e exige retorno ao
+neutro. Erros aparecem nas Configurações. Esse caminho aceita um Pro Controller
+conectado por vez: o gilrs não expõe o caminho HID necessário para associar
+múltiplos dispositivos idênticos com segurança.
+
+O teste físico no macOS verificou quatro eixos, um botão frontal, retorno ao
+neutro e movimento de navegação pelo adaptador de produção. O globo interativo e
+outras plataformas ainda exigem a lista de verificações do aplicativo.
+Para repetir no macOS, conecte um Pro Controller e execute
+`cargo test -p earthcraft --locked nintendo_hardware_input -- --ignored --nocapture`.
+Centralize os analógicos, mova ambos completamente em todas as direções,
+segure um botão frontal brevemente e solte tudo. O teste termina ao passar
+ou após dez minutos.

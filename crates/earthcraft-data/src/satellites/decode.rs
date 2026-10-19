@@ -1,5 +1,8 @@
 //! CelesTrak OMM fields and UTC epoch decoding.
 use super::Satellite;
+// Satellite epochs use four-digit Gregorian years. Bound arithmetic before conversion.
+const MIN_EPOCH_YEAR: i64 = 1;
+const MAX_EPOCH_YEAR: i64 = 9999;
 fn num(v: &serde_json::Value, k: &str) -> Option<f64> {
     v.get(k)?
         .as_f64()
@@ -20,6 +23,9 @@ fn parse_epoch(s: &str) -> Option<f64> {
     let (date, time) = s.split_once('T')?;
     let mut date = date.split('-');
     let y: i64 = date.next()?.parse().ok()?;
+    if !(MIN_EPOCH_YEAR..=MAX_EPOCH_YEAR).contains(&y) {
+        return None;
+    }
     let m: i64 = date.next()?.parse().ok()?;
     let d: i64 = date.next()?.parse().ok()?;
     let mut time = time.trim_end_matches('Z').split(':');
@@ -101,6 +107,15 @@ mod tests {
 #[cfg(test)]
 mod validation_tests {
     use super::*;
+    #[test]
+    fn extreme_epoch_years_are_rejected_before_calendar_arithmetic() {
+        for year in [i64::MIN, -1, 0, 10_000, i64::MAX / 2, i64::MAX] {
+            assert!(parse_epoch(&format!("{year}-01-01T00:00:00Z")).is_none());
+        }
+        for epoch in ["0001-01-01T00:00:00Z", "9999-12-31T23:59:59Z"] {
+            assert!(parse_epoch(epoch).is_some());
+        }
+    }
     #[test]
     fn utc_epoch_rejects_invalid_calendar_dates_and_nonfinite_fields() {
         assert!(parse_epoch("2024-02-29T12:00:00.000Z").is_some());

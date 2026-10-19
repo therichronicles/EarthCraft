@@ -79,6 +79,7 @@ mod tests {
     #[test]
     fn separate_paths_have_no_projected_leg_between_them() {
         let basis = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 0.0,
@@ -109,6 +110,7 @@ mod tests {
     #[test]
     fn handles_are_nearest_visible_and_within_hit_radius() {
         let basis = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 0.0,
             heading: 0.0,

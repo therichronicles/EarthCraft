@@ -83,6 +83,12 @@ file dialogs, or packaging. Run the following manual checks for affected areas:
 - Launch from the root and verify the icon, initial view and panels.
 - Orbit, zoom under the cursor, rotate with right-drag/Shift, use arrow keys,
   compass/north reset, navigation widgets, double-click and fly-to.
+  Tilt with middle-drag, the Globe slider and right-stick Y; check picks, overlays,
+  horizon/space and cursor-anchored zoom for both Earth models. R restores north and
+  nadir without moving the camera; N changes only heading. Confirm text focus blocks R.
+  With a USB Switch Pro Controller, check all four stick axes, released triggers at zero,
+  stable monitor rows, tilt remapping, held controls on reconnect, modal suspension and unplugging.
+  Check startup-view tilt and migration of an existing customized five-axis profile.
   Hold each pan, rotation and zoom button for at least ten seconds; verify
   movement continues until release, including with slight pointer movement.
   Toggle Settings → Hide navigation controls; verify the top-right controls

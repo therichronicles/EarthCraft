@@ -8,6 +8,7 @@ static NEXT: AtomicU64 = AtomicU64::new(0);
 fn screenshot_submission_retains_pixels_without_copying() {
     let (sender, mut receiver) = tokio::sync::mpsc::channel(PENDING_FILE_JOBS);
     let jobs = FileJobs {
+        texture_side_px: AtomicUsize::new(images::MAX_TEXTURE_SIDE_PX as usize),
         sender,
         outstanding: Arc::new(AtomicUsize::new(0)),
     };

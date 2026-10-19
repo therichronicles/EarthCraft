@@ -23,7 +23,6 @@ impl App {
             self.ruler_reveal_requested,
         );
         let mut open = self.sidebar_open;
-        self.kml_drop_rect = egui::Rect::NOTHING;
         self.sidebar_animating =
             show_shell(
                 ui,

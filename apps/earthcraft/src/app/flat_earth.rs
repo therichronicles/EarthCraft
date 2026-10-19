@@ -57,6 +57,14 @@ impl FlatEarth {
         self.image_failed = false;
         let pixels = image.pixels;
         let size = [pixels.width() as usize, pixels.height() as usize];
+        if size.contains(&0)
+            || size
+                .iter()
+                .any(|side| *side > ctx.input(|i| i.max_texture_side))
+        {
+            self.image_failed = true;
+            return;
+        }
         self.texture = Some(ctx.load_texture(
             "earthcraft-secret-3d-disk",
             ColorImage::from_rgba_unmultiplied(size, pixels.as_raw()),
@@ -73,6 +81,9 @@ fn hash01(i: u32) -> f32 {
 
 impl App {
     pub(super) fn flat_earth_shortcuts(&mut self, ctx: &egui::Context) {
+        if ctx.egui_wants_keyboard_input() {
+            return;
+        }
         let (toggle, escape) = ctx.input(|input| {
             (
                 input.modifiers.shift
@@ -164,7 +175,7 @@ impl App {
             painter.text(
                 rect.center(),
                 Align2::CENTER_CENTER,
-                self.lang.text("flat-earth-image-error"),
+                Lang::En.text("flat-earth-image-error"),
                 FontId::proportional(18.0),
                 Color32::WHITE,
             );

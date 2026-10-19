@@ -4,16 +4,43 @@ use crate::wayback::wayback_release;
 use std::{
     io,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
 };
 
 mod mbtiles;
 pub(super) const DEFAULT_DISK_BUDGET_BYTES: u64 = 128 * 1024 * 1024;
 
+const ERROR_LOG_INTERVAL: Duration = Duration::from_secs(30);
+const MAX_ERROR_CHARS: usize = 2048;
+#[derive(Default)]
+struct Diagnostics {
+    latest: Option<String>,
+    logged_at: Option<Instant>,
+}
+impl Diagnostics {
+    fn record(&mut self, message: String, now: Instant) -> bool {
+        self.latest = Some(message.chars().take(MAX_ERROR_CHARS).collect());
+        if self
+            .logged_at
+            .is_none_or(|last| now.saturating_duration_since(last) >= ERROR_LOG_INTERVAL)
+        {
+            self.logged_at = Some(now);
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub(super) struct DiskCache {
     tilesets: mbtiles::Mbtiles,
     root: PathBuf,
     epoch: AtomicU64,
+    diagnostics: Mutex<Diagnostics>,
     gate: tokio::sync::RwLock<()>,
 }
 
@@ -24,6 +51,7 @@ impl DiskCache {
             tilesets: mbtiles::Mbtiles::new(root.clone()),
             root,
             epoch: AtomicU64::new(0),
+            diagnostics: Mutex::new(Diagnostics::default()),
             gate: tokio::sync::RwLock::new(()),
         }
     }
@@ -32,8 +60,19 @@ impl DiskCache {
             tilesets: mbtiles::Mbtiles::with_limit(root.clone(), bytes),
             root,
             epoch: AtomicU64::new(0),
+            diagnostics: Mutex::new(Diagnostics::default()),
             gate: tokio::sync::RwLock::new(()),
         }
+    }
+    fn report(&self, operation: &str, error: &crate::Error) {
+        let message = format!("Disk tile cache {operation} failed: {error}");
+        let mut diagnostics = self.diagnostics.lock().unwrap();
+        if diagnostics.record(message, Instant::now()) {
+            eprintln!("{}", diagnostics.latest.as_deref().unwrap());
+        }
+    }
+    pub(super) fn latest_error(&self) -> Option<String> {
+        self.diagnostics.lock().unwrap().latest.clone()
     }
     pub(super) fn budget_bytes(&self) -> u64 {
         self.tilesets.limit()
@@ -59,7 +98,13 @@ impl DiskCache {
     }
     pub(super) async fn read(&self, path: &Path) -> Option<Vec<u8>> {
         let _guard = self.gate.read().await;
-        self.tilesets.read(path).await.ok().flatten()
+        match self.tilesets.read(path).await {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                self.report("read", &error);
+                None
+            }
+        }
     }
     #[cfg(test)]
     pub(super) async fn write(
@@ -80,20 +125,34 @@ impl DiskCache {
         if epoch != self.epoch() {
             return Ok(());
         }
-        self.tilesets.write_owned(path, bytes).await
+        self.tilesets
+            .write_owned(path, bytes)
+            .await
+            .inspect_err(|error| self.report("write", error))
     }
     pub(super) async fn invalidate(&self, path: &Path) -> Result<(), crate::Error> {
         let _guard = self.gate.read().await;
-        self.tilesets.invalidate(path).await
+        self.tilesets
+            .invalidate(path)
+            .await
+            .inspect_err(|error| self.report("invalidation", error))
     }
     pub(super) async fn clear(&self) -> Result<(), crate::Error> {
         let _guard = self.gate.write().await;
         self.epoch.fetch_add(1, Ordering::Relaxed);
-        self.tilesets.clear().await
+        self.tilesets
+            .clear()
+            .await
+            .inspect_err(|error| self.report("clear", error))?;
+        self.diagnostics.lock().unwrap().latest = None;
+        Ok(())
     }
     pub(super) async fn usage_bytes(&self) -> Result<u64, crate::Error> {
         let _guard = self.gate.read().await;
-        self.tilesets.usage().await
+        self.tilesets
+            .usage()
+            .await
+            .inspect_err(|error| self.report("usage measurement", error))
     }
 }
 

@@ -8,8 +8,17 @@ const ACTIVE_RENDER_SCALE: f32 = 0.4;
 const MIN_RENDER_WIDTH_PX: usize = 64;
 const MAX_RENDER_WIDTH_PX: usize = 2000;
 const MIN_RENDER_HEIGHT_PX: usize = 32;
+const MAX_RENDER_HEIGHT_PX: usize = 2000;
 pub const SCENE_TIME_UPDATE_INTERVAL_SECS: f64 = 60.0;
-pub fn raster_size(size_points: Vec2, pixels_per_point: f32, idle: bool) -> (usize, usize) {
+pub fn raster_size(size_points: Vec2, pixels_per_point: f32, idle: bool) -> Option<(usize, usize)> {
+    if !size_points.is_finite()
+        || size_points.x <= 0.0
+        || size_points.y <= 0.0
+        || !pixels_per_point.is_finite()
+        || pixels_per_point <= 0.0
+    {
+        return None;
+    }
     let scale = if idle {
         IDLE_RENDER_SCALE
     } else {
@@ -17,9 +26,9 @@ pub fn raster_size(size_points: Vec2, pixels_per_point: f32, idle: bool) -> (usi
     };
     let width = ((size_points.x * pixels_per_point * scale) as usize)
         .clamp(MIN_RENDER_WIDTH_PX, MAX_RENDER_WIDTH_PX);
-    let height =
-        ((width as f32 * size_points.y / size_points.x) as usize).max(MIN_RENDER_HEIGHT_PX);
-    (width, height)
+    let height = ((width as f32 * size_points.y / size_points.x) as usize)
+        .clamp(MIN_RENDER_HEIGHT_PX, MAX_RENDER_HEIGHT_PX);
+    Some((width, height))
 }
 pub struct RasterView {
     pub camera: Cam,
@@ -52,6 +61,7 @@ impl RasterView {
                 self.camera.lat.to_bits(),
                 self.camera.lon.to_bits(),
                 self.camera.heading.to_bits(),
+                self.camera.tilt.to_bits(),
                 self.camera.alt.to_bits(),
                 self.width,
                 self.height,
@@ -95,6 +105,7 @@ mod tests {
     fn sky_changes_invalidate_presentation_even_without_sunlight() {
         let mut view = RasterView {
             camera: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 alt: 14000.0,
@@ -126,6 +137,7 @@ mod tests {
         let mut view = RasterView {
             model: earthcraft_core::earth_model::EarthModel::PerfectSphere,
             camera: Cam {
+                tilt: 0.0,
                 lat: 0.0,
                 lon: 0.0,
                 alt: 14_000.0,
@@ -147,6 +159,10 @@ mod tests {
         assert_ne!(view.keys(120.0).presentation, original.presentation);
         assert_ne!(view.keys(120.0).state, original.state);
         view.model = earthcraft_core::earth_model::EarthModel::PerfectSphere;
+        view.camera.tilt = 45.0;
+        assert_ne!(view.keys(120.0).state, original.state);
+        assert_eq!(view.keys(120.0).presentation, original.presentation);
+        view.camera.tilt = 0.0;
         view.camera.lon = 90.0;
         let moved = view.keys(120.0);
         assert_ne!(moved.state, original.state);
@@ -161,18 +177,43 @@ mod tests {
         assert_ne!(view.keys(120.0).presentation, before_resize.presentation);
     }
     #[test]
+    fn invalid_and_extreme_viewports_never_request_unbounded_buffers() {
+        for size in [
+            Vec2::ZERO,
+            Vec2::new(0.0, 900.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(-1.0, 900.0),
+            Vec2::new(f32::NAN, 1.0),
+            Vec2::new(1.0, f32::INFINITY),
+        ] {
+            assert_eq!(raster_size(size, 1.0, true), None);
+        }
+        for dpi in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            assert_eq!(raster_size(Vec2::splat(100.0), dpi, true), None);
+        }
+        for width in [f32::MIN_POSITIVE, 0.25, 1.0] {
+            let (w, h) = raster_size(Vec2::new(width, 900.0), 2.0, true).unwrap();
+            assert!(w <= MAX_RENDER_WIDTH_PX && h <= MAX_RENDER_HEIGHT_PX);
+            assert!(
+                w.checked_mul(h)
+                    .and_then(|pixels| pixels.checked_mul(4))
+                    .is_some()
+            );
+        }
+    }
+    #[test]
     fn interaction_resolution_and_size_limits_are_preserved() {
         assert_eq!(
             raster_size(Vec2::new(1280.0, 800.0), 1.0, true),
-            (1280, 800)
+            Some((1280, 800))
         );
         assert_eq!(
             raster_size(Vec2::new(1280.0, 800.0), 1.0, false),
-            (512, 320)
+            Some((512, 320))
         );
         assert_eq!(
             raster_size(Vec2::new(4000.0, 2000.0), 2.0, true),
-            (2000, 1000)
+            Some((2000, 1000))
         );
     }
 }

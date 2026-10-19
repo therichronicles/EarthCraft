@@ -200,8 +200,13 @@ A matemática da câmera permanece em core. Veja [configurações](features/SETT
 ## Controles
 
 Core trata vínculos normalizados, zona morta/curvas, bordas de botões e passos da
-câmera. Data persiste perfis por modelo. O adaptador gilrs do aplicativo consulta
+câmera, incluindo inclinação limitada a partir do nadir. Data persiste perfis por modelo e
+carrega câmeras/perfis antigos com valores padrão para inclinação. O adaptador gilrs do aplicativo consulta
 conexão/entradas, respeita foco e encaminha ferramentas pelo dispatcher dos menus.
+No macOS, um leitor HID não exclusivo decodifica relatórios completos do Nintendo
+Pro Controller e injeta eventos normalizados no gilrs. I/O nativo e protocolo
+permanecem no aplicativo. O worker agrupa eixos, limita transições pendentes de
+botões e usa calibração somente de leitura, exigindo neutro após perda de entrada.
 Veja [controles](features/CONTROLLERS.pt-BR.md) para limites de dispositivos/plataformas.
 
 ## Fundo celeste
@@ -211,3 +216,7 @@ imagem incluída e a decodificação assíncrona limitada. Render amostra o mapa
 controla visibilidade e compartilha a correção CPU/GPU. O aplicativo trata
 controles, diagnósticos e créditos associados ao frame capturado. Consulte o
 [fundo celeste](features/CELESTIAL_BACKGROUND.pt-BR.md) e o manifesto em assets/sky.
+
+Nuvens/radar usam snapshots `Arc` no preparador e trabalhador limitado das camadas ao vivo.
+O render projeta linhas em paralelo com Rayon e define os limites de resolução em movimento
+e após estabilizar. A interface só envia texturas de resultados compatíveis com a vista exibida.

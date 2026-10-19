@@ -1159,6 +1159,7 @@ dependencies = [
  "emath",
  "fontdb",
  "gilrs",
+ "hidapi",
  "image",
  "muda",
  "rfd",
@@ -1181,6 +1182,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sofars",
+ "syn 2.0.119",
  "unic-langid",
  "unicode-normalization",
 ]
@@ -2251,6 +2253,19 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hidapi"
+version = "2.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "818c0e1d27887aaf76fe737042e27a66b796a7b099e6d2e1a72d106c2dff3fa6"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "pkg-config",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "http"

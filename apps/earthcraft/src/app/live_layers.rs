@@ -244,7 +244,7 @@ impl App {
         }
         if let Some((ship, at)) = nearest {
             let name = if ship.name.is_empty() {
-                "AIS vessel"
+                self.lang.text("vessels-unnamed-label")
             } else {
                 &ship.name
             };

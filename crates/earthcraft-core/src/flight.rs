@@ -27,6 +27,7 @@ impl Flight {
     pub fn new_for_model(from: Cam, lat: f64, lon: f64, alt: f64, model: EarthModel) -> Self {
         let a = from;
         let b = Cam {
+            tilt: 0.0,
             lat: lat.clamp(-MAX_CAMERA_LATITUDE_DEG, MAX_CAMERA_LATITUDE_DEG),
             lon: wrap_lon(lon),
             heading: 0.0,
@@ -74,6 +75,7 @@ impl Flight {
                 .destination((a.lat, a.lon), self.bearing_deg, self.distance_km * s)
         };
         Cam {
+            tilt: a.clamped_tilt() * (1.0 - s),
             lat,
             lon,
             heading: a.heading + wrap_lon(b.heading - a.heading) * s,
@@ -96,6 +98,7 @@ mod tests {
             ((90.0, 30.0), (50.0, -100.0)),
         ] {
             let from = Cam {
+                tilt: 0.0,
                 lat: start.0,
                 lon: start.1,
                 heading: 30.0,
@@ -113,6 +116,7 @@ mod tests {
     #[test]
     fn flight_crosses_dateline_by_short_path_and_finishes_at_clamped_destination() {
         let from = Cam {
+            tilt: 0.0,
             lat: 0.0,
             lon: 179.0,
             heading: 0.0,
@@ -131,5 +135,25 @@ mod tests {
         assert_eq!(end.lat, MAX_CAMERA_LATITUDE_DEG);
         assert_eq!(end.lon, -180.0);
         assert_eq!(end.alt, MIN_CAMERA_ALTITUDE_KM);
+    }
+}
+
+#[cfg(test)]
+mod tilt_tests {
+    use super::*;
+    #[test]
+    fn flight_smoothly_returns_to_nadir() {
+        let camera = Cam {
+            lat: 0.0,
+            lon: 0.0,
+            heading: 50.0,
+            alt: 100.0,
+            tilt: 60.0,
+        };
+        let mut flight = Flight::new(camera, 0.1, 0.1, 100.0);
+        assert_eq!(flight.advance(0.0).tilt, 60.0);
+        let middle = flight.advance(flight.dur * 0.5);
+        assert!((middle.tilt - 30.0).abs() < 1e-10);
+        assert_eq!(flight.advance(flight.dur).tilt, 0.0);
     }
 }

@@ -31,6 +31,7 @@ Anyway** for EarthCraft and confirm **Open**. See [Apple's instructions](https:/
 ### Features
 
 - High-performance optimized 3D globe renderer
+- Earth camera tilt using middle-drag, a Globe slider or right-stick Y, with an R shortcut to reset north and tilt
 - Navigation controls for orbit, zoom and view rotation, with a compass, rotation ring, movement pad and zoom slider; includes a north-up reset and can be hidden in Settings
 - Satellite imagery (credit: Esri), streets (credit: OSM) and topography (credit: OpenTopoMap), with multi-level tile zoom and configurable on-disk caching
 - Atmosphere, stars, real-time sunlight (day/night)
@@ -60,7 +61,7 @@ Anyway** for EarthCraft and confirm **Open**. See [Apple's instructions](https:/
 
 ### Controls
 
-Drag: rotate globe · Right-click: location context menu · Right-drag / Shift+drag: rotate view · Wheel / +/-: zoom · Double-click: fly to point · Arrow keys: move · N: north up
+Drag: rotate globe · Right-click: location context menu · Right-drag / Shift+drag: rotate view · Wheel / +/-: zoom · Double-click: fly to point · Arrow keys: move · Middle-drag: camera tilt · N: north up · R: reset north and tilt
 
 Click **Camera altitude** in the bottom bar to enter an exact altitude.
 

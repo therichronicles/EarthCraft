@@ -23,6 +23,8 @@ pub struct LiveView {
     pub pixels_per_point: f32,
     pub traffic_width_px: usize,
     pub traffic_height_px: usize,
+    pub weather_width_px: usize,
+    pub weather_height_px: usize,
 }
 #[derive(Clone)]
 pub struct LiveInput {
@@ -31,6 +33,8 @@ pub struct LiveInput {
     pub vessels: Option<Arc<[Vessel]>>,
     pub satellites: Option<Arc<[Satellite]>>,
     pub traffic: Option<Arc<TrafficTiles>>,
+    pub cloud: Option<Arc<image::RgbaImage>>,
+    pub radar: Option<Arc<image::RgbaImage>>,
     pub unix_secs: f64,
 }
 fn same<T: ?Sized>(a: &Option<Arc<T>>, b: &Option<Arc<T>>) -> bool {
@@ -47,6 +51,8 @@ impl LiveInput {
             && same(&self.vessels, &other.vessels)
             && same(&self.satellites, &other.satellites)
             && same(&self.traffic, &other.traffic)
+            && same(&self.cloud, &other.cloud)
+            && same(&self.radar, &other.radar)
             && (self.satellites.is_none() || self.unix_secs.floor() == other.unix_secs.floor())
     }
 }
@@ -71,6 +77,7 @@ pub struct LiveGeometry {
     pub vessels: Arc<Vec<ProjectedVessel>>,
     pub satellites: Arc<Vec<ProjectedSatellite>>,
     pub traffic: Option<Arc<Vec<u8>>>,
+    pub weather: Option<Arc<Vec<u8>>>,
 }
 impl LiveGeometry {
     pub fn nearest_road(&self, mouse: Pos2, radius: f32) -> Option<(usize, Pos2)> {
@@ -144,12 +151,29 @@ impl LivePreparer {
                     ))
                 })
             };
+        let weather = if let Some(old) = previous.filter(|old| {
+            same(&old.input.cloud, &input.cloud) && same(&old.input.radar, &input.radar)
+        }) {
+            old.weather.clone()
+        } else if input.cloud.is_some() || input.radar.is_some() {
+            Some(Arc::new(crate::weather::project_live_maps(
+                &input.view.basis,
+                input.view.rect,
+                input.view.weather_width_px,
+                input.view.weather_height_px,
+                input.cloud.as_deref(),
+                input.radar.as_deref(),
+            )))
+        } else {
+            None
+        };
         let geometry = Arc::new(LiveGeometry {
             input,
             roads,
             vessels,
             satellites,
             traffic,
+            weather,
         });
         self.latest = Some(geometry.clone());
         geometry

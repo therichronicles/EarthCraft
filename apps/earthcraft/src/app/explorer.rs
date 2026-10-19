@@ -11,7 +11,7 @@ use std::{process::Command, sync::Arc};
 
 #[derive(Default)]
 pub(super) struct Explorer {
-    pub open: bool,
+    pub(super) open: bool,
     name: String,
     image_path: String,
     sky_path: String,
@@ -20,17 +20,17 @@ pub(super) struct Explorer {
     pending: bool,
     activate_on_completion: bool,
     moon_loading: bool,
-    pub viewer: Option<TextureHandle>,
-    pub active: Body,
+    pub(super) viewer: Option<TextureHandle>,
+    pub(super) active: Body,
     moon: Option<TextureHandle>,
-    pub sky: Option<TextureHandle>,
+    pub(super) sky: Option<TextureHandle>,
     pub(super) message: String,
     tour_text: String,
     generated_tour_text: String,
 }
 
 impl Explorer {
-    pub fn choose(&mut self, body: Body, jobs: &FileJobs) {
+    pub(super) fn choose(&mut self, body: Body, jobs: &FileJobs) {
         self.active = body;
         self.activate_on_completion = false;
         if body == Body::Moon && self.moon.is_none() && !self.moon_loading {
@@ -46,7 +46,7 @@ impl Explorer {
     pub(super) fn has_custom_document(&self) -> bool {
         self.viewer.is_some()
     }
-    pub fn active_texture(&self) -> Option<&TextureHandle> {
+    pub(super) fn active_texture(&self) -> Option<&TextureHandle> {
         match self.active {
             Body::Moon => self.moon.as_ref(),
             Body::Custom => self.viewer.as_ref(),
@@ -56,12 +56,20 @@ impl Explorer {
 }
 fn open_url(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    let result = windows_url_command(url).spawn();
     #[cfg(target_os = "macos")]
     let result = Command::new("open").arg(url).spawn();
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     let result = Command::new("xdg-open").arg(url).spawn();
     result.map(|_| ()).map_err(|e| e.to_string())
+}
+
+// Pass the URL directly to the Windows shell application, never to cmd's parser.
+#[cfg(any(test, target_os = "windows"))]
+fn windows_url_command(url: &str) -> Command {
+    let mut command = Command::new("explorer.exe");
+    command.arg(url);
+    command
 }
 
 #[cfg(target_os = "windows")]
@@ -298,5 +306,16 @@ mod tests {
                 Some(std::ffi::OsStr::new(text))
             )]
         );
+    }
+}
+
+#[cfg(test)]
+mod url_tests {
+    #[test]
+    fn windows_url_preserves_query_separators_as_one_data_argument() {
+        let url = "https://www.openstreetmap.org/?mlat=51.5&mlon=-0.1#map=12/51.5/-0.1";
+        let command = super::windows_url_command(url);
+        assert_eq!(command.get_program(), "explorer.exe");
+        assert_eq!(command.get_args().collect::<Vec<_>>(), [url]);
     }
 }

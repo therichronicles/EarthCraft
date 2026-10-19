@@ -102,6 +102,7 @@ fn warm_cpu_frame_for_model(model: earthcraft_core::earth_model::EarthModel) {
         std::thread::sleep(Duration::from_millis(1));
     }
     let basis = Cam {
+        tilt: 0.0,
         lat: -15.0,
         lon: -50.0,
         heading: 25.0,
@@ -122,6 +123,7 @@ fn warm_cpu_frame_for_model(model: earthcraft_core::earth_model::EarthModel) {
     for lat in [-90.0, -15.0, 0.0, 90.0] {
         for lon in [-180.0, -90.0, 0.0, 90.0, 180.0] {
             let rotated = Cam {
+                tilt: 0.0,
                 lat,
                 lon,
                 heading: 25.0,
@@ -204,6 +206,7 @@ fn warm_gpu_frame_time() {
     let mut gpu = crate::gpu::GpuRenderer::new().unwrap();
     for (w, h) in [(512, 384), (2000, 1488)] {
         let cam = Cam {
+            tilt: 0.0,
             lat: -15.0,
             lon: -50.0,
             heading: 25.0,
@@ -335,6 +338,7 @@ fn warm_gpu_frame_time() {
     assert!(cache.ready_tiles(Provider::Satellite, 0).len() > 512);
     for (lat, lon) in [(-15.0, -50.0), (40.0, 80.0), (-30.0, 170.0)] {
         let cam = Cam {
+            tilt: 0.0,
             lat,
             lon,
             heading: 25.0,
