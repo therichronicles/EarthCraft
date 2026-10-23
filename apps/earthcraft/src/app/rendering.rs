@@ -202,7 +202,9 @@ impl App {
             live_layers: (self.show_roads
                 || self.show_traffic
                 || self.show_vessels
-                || self.show_satellites)
+                || self.show_satellites
+                || self.show_clouds
+                || self.show_weather)
                 .then(|| self.live_layer_input(basis, rect, self.cam, pixels_per_point)),
             overlays: Some(earthcraft_render::overlays::OverlayInput {
                 view: earthcraft_render::overlays::OverlayView {

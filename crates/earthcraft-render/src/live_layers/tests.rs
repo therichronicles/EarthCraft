@@ -18,6 +18,8 @@ pub(super) fn input(model: EarthModel) -> LiveInput {
             pixels_per_point: 1.0,
             traffic_width_px: 16,
             traffic_height_px: 16,
+            weather_width_px: 16,
+            weather_height_px: 16,
         },
         roads: Some(
             vec![Road {
@@ -48,6 +50,8 @@ pub(super) fn input(model: EarthModel) -> LiveInput {
         ),
         satellites: None,
         traffic: None,
+        cloud: None,
+        radar: None,
         unix_secs: 1_700_000_000.0,
     }
 }
@@ -180,4 +184,40 @@ fn worker_publishes_before_waking_and_reuses_an_unchanged_request() {
     worker.submit(input);
     receive.recv_timeout(Duration::from_secs(10)).unwrap();
     assert!(Arc::ptr_eq(&first, &worker.take_completed().unwrap()));
+}
+
+#[test]
+fn weather_reuses_immutable_inputs_and_invalidates_camera_layers_and_resolution() {
+    let mut request = input(EarthModel::Wgs84);
+    request.cloud = Some(Arc::new(image::RgbaImage::from_pixel(
+        4,
+        2,
+        image::Rgba([123, 45, 67, 255]),
+    )));
+    let mut preparer = LivePreparer::default();
+    let first = preparer.prepare(request.clone());
+    assert!(
+        first
+            .weather
+            .as_ref()
+            .unwrap()
+            .as_chunks::<4>()
+            .0
+            .contains(&[123, 45, 67, 198])
+    );
+    request.vessels = None;
+    let second = preparer.prepare(request.clone());
+    assert!(Arc::ptr_eq(
+        first.weather.as_ref().unwrap(),
+        second.weather.as_ref().unwrap()
+    ));
+    request.view.weather_width_px *= 2;
+    let settled = preparer.prepare(request.clone());
+    assert_eq!(settled.weather.as_ref().unwrap().len(), 32 * 16 * 4);
+    assert!(!Arc::ptr_eq(
+        second.weather.as_ref().unwrap(),
+        settled.weather.as_ref().unwrap()
+    ));
+    request.cloud = None;
+    assert!(preparer.prepare(request).weather.is_none());
 }

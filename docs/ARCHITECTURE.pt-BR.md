@@ -211,3 +211,7 @@ imagem incluída e a decodificação assíncrona limitada. Render amostra o mapa
 controla visibilidade e compartilha a correção CPU/GPU. O aplicativo trata
 controles, diagnósticos e créditos associados ao frame capturado. Consulte o
 [fundo celeste](features/CELESTIAL_BACKGROUND.pt-BR.md) e o manifesto em assets/sky.
+
+Nuvens/radar usam snapshots `Arc` no preparador e trabalhador limitado das camadas ao vivo.
+O render projeta linhas em paralelo com Rayon e define os limites de resolução em movimento
+e após estabilizar. A interface só envia texturas de resultados compatíveis com a vista exibida.

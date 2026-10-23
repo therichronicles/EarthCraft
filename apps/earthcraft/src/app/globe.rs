@@ -298,17 +298,12 @@ impl App {
         let (display_cam, display_basis) =
             self.renderer.displayed_view().unwrap_or((self.cam, basis));
         if self.explorer.active == earthcraft_core::body::Body::Earth {
-            self.live_maps.draw(
-                &painter,
-                &display_basis,
-                rect,
-                self.show_clouds,
-                self.show_weather,
-            );
             let live_geometry = if self.show_roads
                 || self.show_traffic
                 || self.show_vessels
                 || self.show_satellites
+                || self.show_clouds
+                || self.show_weather
             {
                 let input = self.live_layer_input(
                     display_basis,
@@ -320,6 +315,8 @@ impl App {
             } else {
                 None
             };
+            self.live_maps
+                .draw(&painter, rect, live_geometry.as_deref());
             if self.show_roads
                 && let Some(geometry) = &live_geometry
             {
