@@ -37,6 +37,7 @@ struct Mailbox<T> {
     completed: Option<RenderedFrame<T>>,
     active: bool,
     stopped: bool,
+    error: Option<String>,
     spare: Option<Vec<u8>>,
 }
 
@@ -73,6 +74,7 @@ impl<T: Send + 'static> RenderWorker<T> {
                 completed: None,
                 active: false,
                 stopped: false,
+                error: None,
                 spare: None,
             }),
             wake: Condvar::new(),
@@ -104,8 +106,28 @@ impl<T: Send + 'static> RenderWorker<T> {
                     );
                     let request = pending.request;
                     // Rasterization holds no mailbox lock. Admission is synchronized below.
-                    let frame = render(&request, buffer);
-                    let prepared = prepare(&request, &frame.pixels);
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let frame = render(&request, buffer);
+                        let prepared = prepare(&request, &frame.pixels);
+                        (frame, prepared)
+                    }));
+                    let (frame, prepared) = match result {
+                        Ok(result) => result,
+                        Err(payload) => {
+                            let reason = payload
+                                .downcast_ref::<String>()
+                                .map(String::as_str)
+                                .or_else(|| payload.downcast_ref::<&str>().copied())
+                                .unwrap_or("unknown panic payload");
+                            let mut mailbox = worker.mailbox.lock().unwrap();
+                            mailbox.active = false;
+                            mailbox.error =
+                                Some(format!("Frame rendering or preparation panicked: {reason}"));
+                            drop(mailbox);
+                            repaint();
+                            continue;
+                        }
+                    };
                     let mut mailbox = worker.mailbox.lock().unwrap();
                     mailbox.active = false;
                     if mailbox.stopped {
@@ -163,6 +185,11 @@ impl<T: Send + 'static> RenderWorker<T> {
             .completed
             .take()
             .filter(|frame| frame.request.presentation == presentation)
+    }
+
+    /// Latest worker failure; the last displayed frame remains usable.
+    pub fn take_error(&self) -> Option<String> {
+        self.shared.mailbox.lock().unwrap().error.take()
     }
 
     pub fn is_idle(&self) -> bool {
