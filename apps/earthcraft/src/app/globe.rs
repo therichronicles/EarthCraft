@@ -21,6 +21,8 @@ const IDLE_RENDER_DELAY: Duration = Duration::from_millis(250);
 const TILE_REDRAW_INTERVAL: Duration = Duration::from_millis(60);
 const OVERVIEW_WARMUP_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
+const KEYBOARD_ZOOM_RATE_PER_SEC: f64 = 1.2;
+
 impl App {
     pub(super) fn globe_view(&mut self, ui: &mut egui::Ui) {
         let lg = self.lang;
@@ -131,11 +133,11 @@ impl App {
                 )
             });
             if zin {
-                self.zoom((-1.2 * dt).exp());
+                self.zoom((-KEYBOARD_ZOOM_RATE_PER_SEC * dt).exp());
                 interacting = true;
             }
             if zout {
-                self.zoom((1.2 * dt).exp());
+                self.zoom((KEYBOARD_ZOOM_RATE_PER_SEC * dt).exp());
                 interacting = true;
             }
             if north {

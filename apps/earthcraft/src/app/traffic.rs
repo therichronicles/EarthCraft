@@ -3,12 +3,12 @@ use eframe::egui::{self, Color32, ColorImage, Pos2, Rect, TextureHandle};
 use std::sync::Arc;
 #[derive(Default)]
 pub(super) struct TrafficOverlay {
-    pub service: earthcraft_data::traffic::LiveTraffic,
+    pub(super) service: earthcraft_data::traffic::LiveTraffic,
     texture: Option<TextureHandle>,
     projected_for: Option<Arc<Vec<u8>>>,
 }
 impl TrafficOverlay {
-    pub fn draw(
+    pub(super) fn draw(
         &mut self,
         painter: &egui::Painter,
         geometry: &earthcraft_render::live_layers::LiveGeometry,

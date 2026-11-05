@@ -73,6 +73,9 @@ fn hash01(i: u32) -> f32 {
 
 impl App {
     pub(super) fn flat_earth_shortcuts(&mut self, ctx: &egui::Context) {
+        if ctx.egui_wants_keyboard_input() {
+            return;
+        }
         let (toggle, escape) = ctx.input(|input| {
             (
                 input.modifiers.shift
