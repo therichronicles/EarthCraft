@@ -327,3 +327,23 @@ these are part of the executable even in single-file portable archives. Keep the
 dataset manifest in the source distribution. Sky screenshots embed their displayed
 frame's provider credit in PNG Source metadata. The 4K SDR image adds about 2.5 MB
 to the binary and retains 24 MiB RGB plus decoder/encoded overhead when loaded.
+
+## Release build reuse
+
+Windows MSI packaging runs beside its matching native binary build, so it no
+longer waits for unrelated Linux/macOS jobs. Pinned cargo-packager 0.11.8 and
+cargo-generate-rpm 0.21.0 executables have their own OS/architecture/version cache;
+a cache miss still installs them with locked dependencies.
+
+Flatpak uses a cached user installation of Builder/GNOME 49/Rust 25.08 and checks
+for runtime updates on every run. Builder state and Cargo target artifacts persist
+under `target/packaging/flatpak-cache`; the SDK sandbox supplies the toolchain and
+libraries. `GSETTINGS_BACKEND=memory` avoids build-only dconf writes. SDK installation
+and build caches are separated by target architecture and manifest/lockfile.
+FreeBSD reuses its prepared VM and Cargo artifacts; the tagged application is
+rebuilt before packaging. Compressed release archives upload without redundant
+artifact compression. The complete 22-asset/checksum publication gate remains.
+
+These changes remove repeated setup and dependency work; actual cold/warm
+release timings must be measured in Actions after merging. Native installer and
+Flatpak startup/upgrade behavior still require target-platform checks.

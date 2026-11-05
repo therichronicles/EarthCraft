@@ -1,0 +1,31 @@
+name: Cached release packaging tools
+description: Restore pinned native packaging executables instead of rebuilding them each run.
+inputs:
+  rpm:
+    description: Also install cargo-generate-rpm
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v6
+      id: tools
+      with:
+        path: ${{ runner.temp }}/earthcraft-release-tools
+        key: release-tools-v1-${{ runner.os }}-${{ runner.arch }}-rust1.95-packager0.11.8-rpm0.21.0-${{ inputs.rpm }}
+    - name: Install pinned packaging tools on a cache miss
+      if: steps.tools.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        TOOL_ROOT: ${{ runner.temp }}/earthcraft-release-tools
+        INSTALL_RPM: ${{ inputs.rpm }}
+      run: |
+        set -euo pipefail
+        cargo install cargo-packager --version 0.11.8 --locked --root "$TOOL_ROOT"
+        if [[ "$INSTALL_RPM" == 'true' ]]; then
+          cargo install cargo-generate-rpm --version 0.21.0 --locked --root "$TOOL_ROOT"
+        fi
+    - name: Add packaging tools to PATH
+      shell: bash
+      env:
+        TOOL_ROOT: ${{ runner.temp }}/earthcraft-release-tools
+      run: echo "$TOOL_ROOT/bin" >> "$GITHUB_PATH"

@@ -173,6 +173,8 @@ class NativePackagingTests(unittest.TestCase):
         flatpak = json.loads((release.ROOT / "packaging/flatpak.json").read_text())
         self.assertEqual(flatpak["app-id"], tools.APP_ID)
         self.assertIn("--env=EARTHCRAFT_UPDATE_MODE=manual", flatpak["finish-args"])
+        self.assertEqual(flatpak["build-options"]["env"]["CARGO_TARGET_DIR"], "/run/ccache/cargo-target")
+        self.assertIn('$CARGO_TARGET_DIR/release/earthcraft', flatpak["modules"][0]["build-commands"][1])
         command = flatpak["modules"][0]["build-commands"][0]
         for argument in ("--locked", "--offline", "--no-default-features"):
             self.assertIn(argument, command)
@@ -243,7 +245,9 @@ class NativePackagingTests(unittest.TestCase):
                 def flatpak(command, **options):
                     commands.append(command)
                     if command[:5] == ["dbus-run-session", "--", "flatpak", "run", "org.flatpak.Builder"]:
-                        self.assertIn("--system", command)
+                        self.assertIn("--user", command)
+                        self.assertIn("--ccache", command)
+                        self.assertEqual(options["env"]["GSETTINGS_BACKEND"], "memory")
                         self.assertIn(f"--arch={architecture}", command)
                         self.assertIn(f"--state-dir={root / 'flatpak-state'}", command)
                         manifest = json.loads(Path(command[-1]).read_text())
