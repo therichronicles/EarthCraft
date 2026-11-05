@@ -3,6 +3,9 @@ use super::RadarFrame;
 use image::{RgbaImage, imageops::FilterType};
 const CLOUD_SOURCE: &str = "https://clouds.matteason.co.uk/images/8192x4096/clouds-alpha.png";
 const RADAR_API: &str = "https://api.rainviewer.com/public/weather-maps.json";
+const MAX_CLOUD_RESPONSE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_RADAR_METADATA_BYTES: u64 = 1024 * 1024;
+const MAX_RADAR_TILE_BYTES: u64 = 4 * 1024 * 1024;
 const TILE_ZOOM: usize = 2;
 const TILE_SIZE: u32 = 512;
 pub(super) async fn download_clouds() -> Result<RgbaImage, crate::Error> {
@@ -14,13 +17,7 @@ pub(super) async fn download_clouds() -> Result<RgbaImage, crate::Error> {
         .as_secs()
         / (3 * 60 * 60);
     let url = format!("{CLOUD_SOURCE}?slot={epoch}");
-    let bytes = client
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
+    let bytes = crate::http::body(client.get(url), MAX_CLOUD_RESPONSE_BYTES).await?;
     // Decode off the UI thread and keep only the working resolution in memory.
     tokio::task::spawn_blocking(move || {
         let image = image::load_from_memory(&bytes)?;
@@ -33,13 +30,8 @@ pub(super) async fn download_clouds() -> Result<RgbaImage, crate::Error> {
 
 pub(super) async fn download_radar() -> Result<RadarFrame, crate::Error> {
     let client = crate::http::client(crate::http::Policy::Radar)?;
-    let json: serde_json::Value = client
-        .get(RADAR_API)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let bytes = crate::http::body(client.get(RADAR_API), MAX_RADAR_METADATA_BYTES).await?;
+    let json = crate::http::parse_json(bytes).await?;
     let frame = json
         .pointer("/radar/past")
         .and_then(|v| v.as_array())
@@ -75,14 +67,7 @@ pub(super) async fn download_radar() -> Result<RadarFrame, crate::Error> {
             let limiter = limiter.clone();
             tasks.spawn(async move {
                 let _permit = limiter.acquire_owned().await.ok()?;
-                let bytes = client
-                    .get(url)
-                    .send()
-                    .await
-                    .ok()?
-                    .error_for_status()
-                    .ok()?
-                    .bytes()
+                let bytes = crate::http::body(client.get(url), MAX_RADAR_TILE_BYTES)
                     .await
                     .ok()?;
                 let image = image::load_from_memory(&bytes).ok()?.to_rgba8();

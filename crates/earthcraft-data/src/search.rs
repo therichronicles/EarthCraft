@@ -1,3 +1,4 @@
+const MAX_SEARCH_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 use earthcraft_core::coordinates::{parse_coordinates, validate_coordinates};
 const SEARCH_KM_PER_DEGREE: f64 = 111.2;
 const SEARCH_VIEW_PADDING_RATIO: f64 = 1.6;
@@ -30,7 +31,8 @@ pub async fn geocode(q: &str, lang: &str) -> Result<Vec<GeoResult>, crate::Error
             ("accept-language", lang),
             ("q", q),
         ]);
-    let v = crate::http::parse_json(crate::http::body(request, 1 << 30).await?).await?;
+    let v = crate::http::parse_json(crate::http::body(request, MAX_SEARCH_RESPONSE_BYTES).await?)
+        .await?;
     parse_geocode_response(v)
 }
 
@@ -95,7 +97,8 @@ pub async fn photon_suggest(q: &str, lang: &str) -> Result<Vec<Suggestion>, crat
     if lang == "en" {
         request = request.query(&[("lang", "en")]);
     }
-    let v = crate::http::parse_json(crate::http::body(request, 1 << 30).await?).await?;
+    let v = crate::http::parse_json(crate::http::body(request, MAX_SEARCH_RESPONSE_BYTES).await?)
+        .await?;
     Ok(parse_photon_response(v))
 }
 

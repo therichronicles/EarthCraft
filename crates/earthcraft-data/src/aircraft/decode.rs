@@ -8,11 +8,7 @@ const ADSB_LOCAL_RADIUS_NM: u32 = 250;
 const FEET_PER_METER: f64 = 3.28084;
 const KNOTS_PER_METER_PER_SECOND: f64 = 1.94384449;
 async fn response(request: reqwest::RequestBuilder, limit: u64) -> Result<Vec<u8>, crate::Error> {
-    let bytes = crate::http::body(request, limit + 1).await?;
-    if bytes.len() as u64 > limit {
-        return Err(format!("Aircraft response exceeds {limit} bytes").into());
-    }
-    Ok(bytes)
+    crate::http::body(request, limit).await
 }
 fn number(v: Option<&serde_json::Value>) -> Option<f64> {
     v.and_then(|v| v.as_f64()).filter(|v| v.is_finite())
