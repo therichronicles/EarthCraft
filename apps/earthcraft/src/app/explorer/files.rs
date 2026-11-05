@@ -93,7 +93,13 @@ impl Explorer {
                 unreachable!("illustration results are dispatched by the app")
             }
         };
-        let texture = upload_image(ctx, label, image.pixels);
+        let texture = match upload_image(ctx, label, image.pixels) {
+            Ok(texture) => texture,
+            Err(error) => {
+                self.file_failed(FileKind::Image(target), error);
+                return;
+            }
+        };
         match target {
             ImageTarget::Planet => {
                 self.viewer = Some(texture);
@@ -123,11 +129,24 @@ impl Explorer {
         ctx: &egui::Context,
         lang: Lang,
     ) {
+        let textures = (|| {
+            let texture = upload_image(ctx, "loaded-planet", planet.planet)?;
+            let sky = planet
+                .sky
+                .map(|image| upload_image(ctx, "loaded-sky", image))
+                .transpose()?;
+            Ok::<_, earthcraft_data::Error>((texture, sky))
+        })();
+        let (texture, sky) = match textures {
+            Ok(textures) => textures,
+            Err(error) => {
+                self.file_failed(FileKind::OpenPlanet, error);
+                return;
+            }
+        };
         self.name = planet.name;
-        self.viewer = Some(upload_image(ctx, "loaded-planet", planet.planet));
-        self.sky = planet
-            .sky
-            .map(|image| upload_image(ctx, "loaded-sky", image));
+        self.viewer = Some(texture);
+        self.sky = sky;
         self.image_path.clear();
         self.sky_path.clear();
         self.image_bytes = Some(planet.assets.texture);
@@ -155,11 +174,19 @@ impl Explorer {
     }
 }
 
-fn upload_image(ctx: &egui::Context, label: &str, image: image::RgbaImage) -> TextureHandle {
+fn upload_image(
+    ctx: &egui::Context,
+    label: &str,
+    image: image::RgbaImage,
+) -> Result<TextureHandle, earthcraft_data::Error> {
     let size = [image.width() as usize, image.height() as usize];
-    ctx.load_texture(
+    let limit = ctx.input(|input| input.max_texture_side);
+    if size.contains(&0) || size.iter().any(|side| *side > limit) {
+        return Err(format!("Image exceeds the current texture device limit ({limit} px)").into());
+    }
+    Ok(ctx.load_texture(
         label,
         ColorImage::from_rgba_unmultiplied(size, image.as_raw()),
         Default::default(),
-    )
+    ))
 }

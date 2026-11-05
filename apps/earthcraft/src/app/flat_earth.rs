@@ -57,6 +57,14 @@ impl FlatEarth {
         self.image_failed = false;
         let pixels = image.pixels;
         let size = [pixels.width() as usize, pixels.height() as usize];
+        if size.contains(&0)
+            || size
+                .iter()
+                .any(|side| *side > ctx.input(|i| i.max_texture_side))
+        {
+            self.image_failed = true;
+            return;
+        }
         self.texture = Some(ctx.load_texture(
             "earthcraft-secret-3d-disk",
             ColorImage::from_rgba_unmultiplied(size, pixels.as_raw()),

@@ -1,5 +1,5 @@
 //! Ordered, bounded file jobs; native dialogs and applying results stay in app.
-mod images;
+pub(crate) mod images;
 mod screenshot;
 mod session;
 use earthcraft_core::{language::Lang, placemark::Places};
@@ -60,8 +60,8 @@ enum Job {
     Save(PathBuf, Places),
     Screenshot(PathBuf, u32, u32, Arc<Vec<u8>>),
     ScreenshotWithCredits(PathBuf, u32, u32, Arc<Vec<u8>>, String),
-    Image(ImageTarget, ImageSource),
-    OpenPlanet(PathBuf),
+    Image(ImageTarget, ImageSource, u32),
+    OpenPlanet(PathBuf, u32),
     SavePlanet(PlanetSave),
 }
 impl Job {
@@ -71,7 +71,7 @@ impl Job {
             Self::Open(..) => FileKind::OpenKml,
             Self::Save(..) => FileKind::SaveKml,
             Self::Screenshot(..) | Self::ScreenshotWithCredits(..) => FileKind::Screenshot,
-            Self::Image(target, _) => FileKind::Image(*target),
+            Self::Image(target, ..) => FileKind::Image(*target),
             Self::OpenPlanet(..) => FileKind::OpenPlanet,
             Self::SavePlanet(..) => FileKind::SavePlanet,
         }
@@ -98,16 +98,16 @@ impl Job {
             Self::ScreenshotWithCredits(path, width, height, pixels, credits) => {
                 screenshot::save(path, width, height, &pixels, Some(&credits))
             }
-            Self::Image(target, source) => {
+            Self::Image(target, source, max_side) => {
                 let encoded = source.read()?;
-                let pixels = image::load_from_memory(&encoded)?.to_rgba8();
+                let pixels = images::decode_texture(&encoded, max_side)?;
                 Ok(FileOutcome::ImageLoaded {
                     target,
                     image: LoadedImage { pixels, encoded },
                 })
             }
-            Self::OpenPlanet(path) => Ok(FileOutcome::PlanetLoaded {
-                planet: crate::planet::load_planet(&path)?,
+            Self::OpenPlanet(path, max_side) => Ok(FileOutcome::PlanetLoaded {
+                planet: crate::planet::load_planet_with_limit(&path, max_side)?,
             }),
             Self::SavePlanet(PlanetSave {
                 path,
@@ -131,6 +131,7 @@ impl Job {
 pub struct FileJobs {
     sender: tokio::sync::mpsc::Sender<Job>,
     outstanding: Arc<AtomicUsize>,
+    texture_side_px: AtomicUsize,
 }
 impl FileJobs {
     pub fn new(
@@ -158,6 +159,7 @@ impl FileJobs {
             Self {
                 sender,
                 outstanding,
+                texture_side_px: AtomicUsize::new(images::MAX_TEXTURE_SIDE_PX as usize),
             },
             receiver,
         )
@@ -220,11 +222,25 @@ impl FileJobs {
             credits,
         ))
     }
+    /// Capture the frontend device limit when subsequent image jobs are submitted.
+    pub fn set_texture_side_limit(&self, max_side: usize) {
+        self.texture_side_px.store(
+            max_side.min(images::MAX_TEXTURE_SIDE_PX as usize),
+            Ordering::Relaxed,
+        );
+    }
     pub fn load_image(&self, target: ImageTarget, source: ImageSource) -> Result<(), crate::Error> {
-        self.submit(Job::Image(target, source))
+        self.submit(Job::Image(
+            target,
+            source,
+            self.texture_side_px.load(Ordering::Relaxed) as u32,
+        ))
     }
     pub fn open_planet(&self, path: PathBuf) -> Result<(), crate::Error> {
-        self.submit(Job::OpenPlanet(path))
+        self.submit(Job::OpenPlanet(
+            path,
+            self.texture_side_px.load(Ordering::Relaxed) as u32,
+        ))
     }
     pub fn save_planet(&self, snapshot: PlanetSave) -> Result<(), crate::Error> {
         self.submit(Job::SavePlanet(snapshot))
