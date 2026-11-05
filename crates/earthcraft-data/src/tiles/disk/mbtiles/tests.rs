@@ -98,3 +98,47 @@ fn bundled_sqlite_supports_fts5_and_rtree_without_loading_extensions() {
     let db = rusqlite::Connection::open_in_memory().unwrap();
     db.execute_batch("CREATE VIRTUAL TABLE text_index USING fts5(name); CREATE VIRTUAL TABLE spatial_index USING rtree(id,min_x,max_x,min_y,max_y);").unwrap();
 }
+
+#[test]
+fn batch_trim_reclaims_many_tiles_and_retains_newest_and_overview() {
+    let fixture = Fixture::new();
+    let path = fixture.0.join("osm/tiles-png.mbtiles");
+    let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+    with_database(&mut connection, &fixture.0, &path, true, "png", |db| {
+        let transaction = db.transaction()?;
+        for x in 0..700u32 {
+            transaction.execute(
+                "INSERT INTO tile_cache.tiles VALUES (10,?1,0,?2)",
+                rusqlite::params![x, vec![7u8; 4096]],
+            )?;
+            transaction.execute(
+                "INSERT INTO tile_cache.earthcraft_access VALUES (10,?1,0,?1,?2)",
+                rusqlite::params![x, x == 0],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    })
+    .unwrap();
+    let mut budget = budget::Budget::scan(&fixture.0).unwrap();
+    let limit = 256 * 1024;
+    budget.trim(&mut connection, &fixture.0, limit).unwrap();
+    assert!(std::fs::metadata(&path).unwrap().len() <= limit);
+    let db = rusqlite::Connection::open(path).unwrap();
+    let retained: Vec<u32> = db
+        .prepare("SELECT tile_column FROM tiles ORDER BY tile_column")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(retained.first(), Some(&0));
+    assert_eq!(retained.last(), Some(&699));
+    assert!(retained.len() < 100);
+    assert!(!retained.contains(&1));
+    assert_eq!(
+        db.query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
+            .unwrap(),
+        "ok"
+    );
+}
