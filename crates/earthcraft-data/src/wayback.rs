@@ -70,11 +70,11 @@ pub async fn load_wayback_releases() -> Result<Vec<WaybackRelease>, crate::Error
     let request = crate::http::client(crate::http::Policy::Wayback)?.get(WAYBACK_CONFIG);
     let net = async {
         let bytes = crate::http::body(request, MAX_WAYBACK_CONFIG_BYTES).await?;
-        let parsed = tokio::task::spawn_blocking(move || {
-            serde_json::from_slice::<serde_json::Value>(&bytes).map(|value| (value, bytes))
+        let parsed = crate::cpu::run(crate::cpu::Service::Features, move || {
+            Ok((serde_json::from_slice::<serde_json::Value>(&bytes)?, bytes))
         })
         .await?;
-        let (value, bytes) = parsed?;
+        let (value, bytes) = parsed;
         if let Some(dir) = path.parent() {
             let _ = tokio::fs::create_dir_all(dir).await;
         }
