@@ -251,3 +251,174 @@ fn tree_roundtrip_preserves_distinct_folders_visibility_and_empty_groups() {
         ["Peak", "Other"]
     );
 }
+
+/// Small deterministic generator so the comparison needs no extra dependency.
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn below(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
+    fn chance(&mut self, percent: u64) -> bool {
+        self.below(100) < percent
+    }
+}
+
+fn text(rng: &mut Rng) -> String {
+    const PARTS: [&str; 9] = [
+        "Alpha", " padded ", "A &amp; B", "caf\u{e9}", "&lt;tag&gt;", "&#38;x", "", "two  spaces", "<![CDATA[raw &amp; <b>]]>",
+    ];
+    PARTS[rng.below(PARTS.len() as u64) as usize].to_owned()
+}
+
+fn field(rng: &mut Rng, p: &str, name: &str) -> String {
+    match rng.below(5) {
+        0 => String::new(),
+        1 => format!("<{p}{name}/>"),
+        _ => {
+            let body = if name == "visibility" {
+                ["0", "1", "false", "true", " 0 ", ""][rng.below(6) as usize].to_owned()
+            } else {
+                text(rng)
+            };
+            format!("<{p}{name}>{body}</{p}{name}>")
+        }
+    }
+}
+
+fn geometry(rng: &mut Rng, p: &str) -> String {
+    let c = |rng: &mut Rng| {
+        format!(
+            "{:.4},{:.4},{}",
+            rng.below(36000) as f64 / 100.0 - 180.0,
+            rng.below(17000) as f64 / 100.0 - 85.0,
+            rng.below(100)
+        )
+    };
+    match rng.below(7) {
+        0 => String::new(),
+        1 => format!("<{p}Point/>"),
+        2 | 3 => format!("<{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point>", c(rng)),
+        4 => format!(
+            "<{p}LineString><{p}coordinates>{} {} {}</{p}coordinates></{p}LineString>",
+            c(rng), c(rng), c(rng)
+        ),
+        5 => format!(
+            "<{p}Polygon><{p}outerBoundaryIs><{p}LinearRing><{p}coordinates>{} {} {}</{p}coordinates></{p}LinearRing></{p}outerBoundaryIs></{p}Polygon>",
+            c(rng), c(rng), c(rng)
+        ),
+        _ => format!(
+            "<{p}MultiGeometry><{p}Point/><{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point></{p}MultiGeometry>",
+            c(rng)
+        ),
+    }
+}
+
+fn placemark(rng: &mut Rng, p: &str) -> String {
+    let mut parts = vec![
+        field(rng, p, "name"),
+        field(rng, p, "description"),
+        field(rng, p, "visibility"),
+        geometry(rng, p),
+    ];
+    if rng.chance(20) {
+        parts.push(format!("<{p}ExtendedData><{p}Data name=\"k\"><{p}value>v</{p}value></{p}Data></{p}ExtendedData>"));
+    }
+    if rng.chance(15) {
+        parts.push("<!-- note -->".into());
+    }
+    // Field order varies, like real exports.
+    for i in (1..parts.len()).rev() {
+        parts.swap(i, rng.below(i as u64 + 1) as usize);
+    }
+    format!("<{p}Placemark>{}</{p}Placemark>", parts.concat())
+}
+
+fn container(rng: &mut Rng, p: &str, depth: u32) -> String {
+    let tag = if rng.chance(50) { "Folder" } else { "Document" };
+    let mut parts = vec![
+        field(rng, p, "name"),
+        field(rng, p, "description"),
+        field(rng, p, "visibility"),
+    ];
+    // Repeated metadata: the first occurrence with text must win.
+    for name in ["name", "description", "visibility"] {
+        if rng.chance(35) {
+            parts.push(field(rng, p, name));
+        }
+    }
+    if rng.chance(30) {
+        parts.push(format!("<{p}Style id=\"s\"><{p}IconStyle><{p}scale>1</{p}scale></{p}IconStyle></{p}Style>"));
+    }
+    if rng.chance(10) {
+        parts.push(format!("<{p}NetworkLink><{p}name>skip</{p}name><{p}Placemark/></{p}NetworkLink>"));
+    }
+    for _ in 0..rng.below(5) {
+        parts.push(if depth < 4 && rng.chance(30) {
+            container(rng, p, depth + 1)
+        } else {
+            placemark(rng, p)
+        });
+    }
+    for i in (1..parts.len()).rev() {
+        parts.swap(i, rng.below(i as u64 + 1) as usize);
+    }
+    format!("<{p}{tag}>{}</{p}{tag}>", parts.concat())
+}
+
+fn document(rng: &mut Rng) -> String {
+    let p = if rng.chance(25) { "k:" } else { "" };
+    let ns = if p.is_empty() { "" } else { " xmlns:k=\"http://www.opengis.net/kml/2.2\"" };
+    let body: String = (0..1 + rng.below(3))
+        .map(|_| if rng.chance(70) { container(rng, p, 0) } else { placemark(rng, p) })
+        .collect();
+    match rng.below(4) {
+        0 => body,
+        _ => format!("<{p}kml{ns}>{body}</{p}kml>"),
+    }
+}
+
+fn dump(nodes: &[PlaceNode], out: &mut String) {
+    for node in nodes {
+        match &node.item {
+            PlaceItem::Marker(pm) => out.push_str(&format!(
+                "M({:?},{:?},{},{},{});",
+                pm.name, pm.desc, pm.lat, pm.lon, node.visible
+            )),
+            PlaceItem::Folder { name, description, document, children } => {
+                out.push_str(&format!("F({name:?},{description:?},{document},{});[", node.visible));
+                dump(children, out);
+                out.push_str("]");
+            }
+        }
+    }
+}
+
+#[test]
+fn streaming_reader_matches_whole_document_decoding() {
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+    let mut compared = 0;
+    for case in 0..3000 {
+        let xml = document(&mut rng);
+        let Ok(prepared) = guard::prepare(&xml) else { continue };
+        let dom = parse_prepared_dom(prepared.clone(), Lang::En);
+        let stream = stream::parse(&prepared, Lang::En);
+        match (dom, stream) {
+            (Ok(a), Ok(b)) => {
+                let (mut x, mut y) = (String::new(), String::new());
+                dump(&a.roots, &mut x);
+                dump(&b.roots, &mut y);
+                assert_eq!(x, y, "case {case}: {xml}");
+                compared += 1;
+            }
+            (Err(_), Err(_)) => {}
+            (a, b) => panic!("case {case}: dom ok={} stream ok={}: {xml}", a.is_ok(), b.is_ok()),
+        }
+    }
+    assert!(compared > 2000, "only {compared} comparable documents");
+}

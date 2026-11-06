@@ -1,6 +1,6 @@
 //! Read and write KML/KMZ places through the shared GeoRust KML pipeline.
 use ::kml::{
-    Kml, KmlReader, KmlWriter,
+    Kml, KmlWriter,
     types::{
         Coord, Element, Folder, Geometry, KmlDocument, KmlVersion, Placemark as KmlPlacemark, Point,
     },
@@ -16,6 +16,7 @@ use quick_xml::{
 
 mod guard;
 mod kmz;
+mod stream;
 
 fn element(name: &str, content: &str) -> Kml<f64> {
     Kml::Element(Element {
@@ -216,6 +217,15 @@ fn parse_owned(txt: String, lg: Lang) -> Result<Places, crate::Error> {
 }
 
 fn parse_prepared(xml: Vec<u8>, lg: Lang) -> Result<Places, crate::Error> {
+    // Placemarks are decoded one at a time, so the whole document is never held
+    // as a DOM beside the prepared text.
+    stream::parse(&xml, lg)
+}
+
+/// The original whole-document decoder, kept to check the streaming reader.
+#[cfg(test)]
+fn parse_prepared_dom(xml: Vec<u8>, lg: Lang) -> Result<Places, crate::Error> {
+    use ::kml::KmlReader;
     let document = match KmlReader::<_, f64>::from_reader(xml.as_slice()).read() {
         Ok(document) => document,
         Err(::kml::Error::NoElements) => return Ok(Places::default()),
@@ -225,6 +235,7 @@ fn parse_prepared(xml: Vec<u8>, lg: Lang) -> Result<Places, crate::Error> {
     places_from_document(document, lg)
 }
 
+#[cfg(test)]
 fn places_from_document(document: Kml<f64>, lg: Lang) -> Result<Places, crate::Error> {
     let mut out = Vec::new();
     collect(document, lg, &mut out)?;

@@ -5,7 +5,13 @@ use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 /// Decompressed size accepted for the KML document inside a KMZ. Entry headers
 /// are untrusted, so the limit applies to the bytes actually inflated.
-const MAX_DOCUMENT_BYTES: u64 = 128 * 1024 * 1024;
+///
+/// Import is streamed per placemark, so peak memory is about twice the document
+/// size plus the imported places. Unit tests use a small limit to stay fast.
+#[cfg(not(test))]
+const MAX_DOCUMENT_BYTES: u64 = 512 * 1024 * 1024;
+#[cfg(test)]
+const MAX_DOCUMENT_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Return the first `.kml` entry in archive order, matching GeoRust's KMZ reader.
 pub(super) fn decode(path: &str) -> Result<String, crate::Error> {
