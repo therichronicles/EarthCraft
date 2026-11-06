@@ -464,3 +464,50 @@ fn lines_and_outlines_are_imported_and_survive_a_save() {
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn attributes_labels_and_line_styles_are_imported_and_saved() {
+    let xml = r##"<kml><Document><name>Fiber</name>
+      <Style id="blue"><LineStyle><color>ffff0000</color><width>2</width></LineStyle></Style>
+      <StyleMap id="map"><Pair><key>normal</key><styleUrl>#blue</styleUrl></Pair></StyleMap>
+      <Placemark><name>kml_7</name><description><![CDATA[<table><tr><th>OWNER</th><td>ACME</td></tr><tr><th>LABEL</th><td>72-BFO-I
+XD,1-24</td></tr></table>]]></description>
+        <styleUrl>#map</styleUrl>
+        <ExtendedData><SchemaData schemaUrl="#s"><SimpleData name="OWNER">ACME</SimpleData>
+        <SimpleData name="LABEL">72-BFO-I
+XD,1-24</SimpleData></SchemaData></ExtendedData>
+        <LineString><coordinates>1,2 3,4</coordinates></LineString></Placemark>
+      <Placemark><name>Main St</name><description>Field notes</description>
+        <ExtendedData><Data name="Owner"><value>City</value></Data></ExtendedData>
+        <Style><LineStyle><color>ff0000ff</color><width>4</width></LineStyle></Style>
+        <LineString><coordinates>5,6 7,8</coordinates></LineString></Placemark>
+    </Document></kml>"##;
+    let tree = parse_tree(xml, Lang::En).unwrap();
+    let marks: Vec<_> = tree.markers(false).cloned().collect();
+    // A generated name is replaced by the first line of LABEL; the repeated table is dropped.
+    assert_eq!(marks[0].name, "72-BFO-I");
+    assert_eq!(marks[0].desc, "");
+    assert_eq!(marks[0].attributes[0], ("OWNER".to_owned(), "ACME".to_owned()));
+    assert_eq!(marks[0].attributes[1].1, "72-BFO-I\nXD,1-24");
+    let style = marks[0].line_style.unwrap();
+    assert_eq!((style.rgba, style.width), ([0, 0, 255, 255], 2.0));
+    // A real name and real notes stay; an inline style wins.
+    assert_eq!(marks[1].name, "Main St");
+    assert_eq!(marks[1].desc, "Field notes");
+    assert_eq!(marks[1].attributes, [("Owner".to_owned(), "City".to_owned())]);
+    assert_eq!(marks[1].line_style.unwrap().rgba, [255, 0, 0, 255]);
+
+    let dir = std::env::temp_dir().join(format!("earthcraft-attrs-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["attrs.kml", "attrs.kmz"] {
+        let path = dir.join(name);
+        save_kml(path.to_str().unwrap(), &tree).unwrap();
+        let again: Vec<_> = load_kml(path.to_str().unwrap(), Lang::En)
+            .unwrap()
+            .markers(false)
+            .cloned()
+            .collect();
+        assert_eq!(again, marks, "{name}");
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}

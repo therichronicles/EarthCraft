@@ -5,7 +5,7 @@
 //! subtrees EarthCraft does not import (styles, overlays, schemas) are skipped.
 //! Behavior matches decoding the whole document, except that malformed content
 //! inside skipped subtrees no longer fails the import.
-use super::{collect, guard, visible};
+use super::{Styles, collect, guard, visible};
 use ::kml::{Kml, KmlReader};
 use earthcraft_core::{
     language::Lang,
@@ -75,11 +75,21 @@ pub(super) fn parse(xml: &[u8], lg: Lang) -> Result<Places, crate::Error> {
     let mut reader = Reader::from_reader(xml);
     let mut stack: Vec<Frame> = Vec::new();
     let mut roots: Vec<PlaceNode> = Vec::new();
+    let mut styles = Styles::default();
     loop {
         let start = reader.buffer_position() as usize;
         match reader.read_event()? {
             Event::Start(tag) => match tag.local_name().as_ref() {
                 "kml" | "Document" => stack.push(open(&tag)),
+                "Style" | "StyleMap" => {
+                    reader.read_to_end(tag.name())?;
+                    // Styles only color lines; a malformed one must not fail the import.
+                    match decode(&xml[start..reader.buffer_position() as usize]) {
+                        Ok(Kml::Style(style)) => styles.add_style(&style),
+                        Ok(Kml::StyleMap(map)) => styles.add_map(&map),
+                        _ => {}
+                    }
+                }
                 name @ ("Placemark" | "name" | "description" | "visibility") => {
                     reader.read_to_end(tag.name())?;
                     // The reader now sits just past the closing tag.
@@ -87,9 +97,9 @@ pub(super) fn parse(xml: &[u8], lg: Lang) -> Result<Places, crate::Error> {
                     let siblings = stack.last_mut();
                     match (name, element, siblings) {
                         ("Placemark", element, Some(frame)) => {
-                            collect(element, lg, &mut frame.children)?
+                            collect(element, lg, &styles, &mut frame.children)?
                         }
-                        ("Placemark", element, None) => collect(element, lg, &mut roots)?,
+                        ("Placemark", element, None) => collect(element, lg, &styles, &mut roots)?,
                         (field, Kml::Element(element), Some(frame)) if !frame.envelope => {
                             let slot = match field {
                                 "name" => &mut frame.name,

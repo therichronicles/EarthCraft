@@ -9,6 +9,11 @@ mod projected;
 pub(super) use cache::OverlayCache;
 use cache::{OverlayLayers, OverlayStyle, OverlayView};
 
+/// A run must be at least this long (points) to carry a label.
+const PATH_LABEL_MIN_LENGTH: f32 = 90.0;
+/// Most labels considered per frame; each needs a free screen cell.
+const PATH_LABEL_CANDIDATES: usize = 400;
+
 impl App {
     pub(super) fn invalidate_font_layout(&mut self) {
         self.overlay_cache.invalidate();
@@ -100,14 +105,50 @@ impl App {
             }
         }
         // lines and outlines imported with placemarks (for example fiber routes)
-        let path_stroke = Stroke::new(1.5_f32 * ms, Color32::from_rgb(255, 140, 0));
+        let default_style = earthcraft_core::placemark::LineStyle {
+            rgba: [255, 140, 0, 255],
+            width: 2.0,
+        };
         let mut runs = Vec::new();
+        let mut labels: Vec<(f32, &str, Pos2, f32)> = Vec::new();
         for pm in self.placemarks.markers(true) {
+            let style = pm.line_style.unwrap_or(default_style);
+            let [r, g, b, a] = style.rgba;
+            let stroke = Stroke::new(
+                0.75_f32 * style.width.clamp(1.0, 8.0) * ms,
+                Color32::from_rgba_unmultiplied(r, g, b, a),
+            );
             for path in &pm.paths {
                 earthcraft_render::overlays::paths::project_path(basis, rect, path, &mut runs);
                 for run in runs.drain(..) {
-                    painter.add(egui::Shape::line(run, path_stroke));
+                    if !pm.name.is_empty()
+                        && let Some((at, angle, length)) =
+                            earthcraft_render::overlays::paths::label_anchor(&run, PATH_LABEL_MIN_LENGTH)
+                    {
+                        labels.push((length, pm.name.as_str(), at, angle));
+                    }
+                    painter.add(egui::Shape::line(run, stroke));
                 }
+            }
+        }
+        // Label the longest visible lines first, one per screen cell.
+        labels.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let mut occupied = earthcraft_render::overlays::placemarks::LabelGrid::new(rect);
+        let label_font = crate::app::fonts::map_font(painter.ctx(), 12.0 * ms);
+        for (_, name, at, angle) in labels.into_iter().take(PATH_LABEL_CANDIDATES) {
+            if !occupied.claim(at) {
+                continue;
+            }
+            for (shadow, color) in [(Vec2::new(1.0, 1.0), Color32::BLACK), (Vec2::ZERO, Color32::WHITE)] {
+                let galley = painter.layout_no_wrap(name.to_owned(), label_font.clone(), color);
+                let size = galley.size();
+                // Lift the text off the line along its normal.
+                let lift = Vec2::new(angle.sin(), -angle.cos()) * (size.y * 0.5 + 2.0);
+                let top_left = at + lift + shadow - size * 0.5;
+                painter.add(
+                    egui::epaint::TextShape::new(top_left, galley, color)
+                        .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
+                );
             }
         }
         // placemarks: thin dense imports so tens of thousands of markers stay interactive

@@ -15,9 +15,11 @@ use quick_xml::{
     events::{BytesDecl, Event},
 };
 
+mod extra;
 mod guard;
 mod kmz;
 mod stream;
+use extra::Styles;
 
 fn element(name: &str, content: &str) -> Kml<f64> {
     Kml::Element(Element {
@@ -26,6 +28,49 @@ fn element(name: &str, content: &str) -> Kml<f64> {
         ..Default::default()
     })
 }
+/// `visibility`, the attributes as `ExtendedData`, and the line color as an
+/// inline `Style`, so a saved file keeps what the import read.
+fn marker_children(visibility: Element, pm: &Placemark) -> Vec<Element> {
+    let text = |name: &str, content: &str| Element {
+        name: name.into(),
+        content: Some(content.into()),
+        ..Default::default()
+    };
+    let mut children = vec![visibility];
+    if !pm.attributes.is_empty() {
+        children.push(Element {
+            name: "ExtendedData".into(),
+            children: pm
+                .attributes
+                .iter()
+                .map(|(key, value)| Element {
+                    name: "Data".into(),
+                    attrs: [("name".to_owned(), key.clone())].into(),
+                    children: vec![text("value", value)],
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        });
+    }
+    if let Some(style) = pm.line_style {
+        let [red, green, blue, alpha] = style.rgba;
+        children.push(Element {
+            name: "Style".into(),
+            children: vec![Element {
+                name: "LineStyle".into(),
+                children: vec![
+                    text("color", &format!("{alpha:02x}{blue:02x}{green:02x}{red:02x}")),
+                    text("width", &style.width.to_string()),
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+    }
+    children
+}
+
 fn encode(node: &PlaceNode) -> Result<Kml<f64>, crate::Error> {
     let visibility = element("visibility", if node.visible { "1" } else { "0" });
     Ok(match &node.item {
@@ -44,7 +89,7 @@ fn encode(node: &PlaceNode) -> Result<Kml<f64>, crate::Error> {
                         paths.iter().map(path_geometry).collect(),
                     )),
                 }),
-                children: vec![visibility],
+                children: marker_children(visibility, pm),
                 ..Default::default()
             })
         }
@@ -119,11 +164,16 @@ fn metadata(elements: &[Kml<f64>], field: &str) -> Option<String> {
 fn visible(value: Option<&str>) -> bool {
     !matches!(value.map(str::trim), Some("0" | "false"))
 }
-fn collect(document: Kml<f64>, lg: Lang, out: &mut Vec<PlaceNode>) -> Result<(), crate::Error> {
+fn collect(
+    document: Kml<f64>,
+    lg: Lang,
+    styles: &Styles,
+    out: &mut Vec<PlaceNode>,
+) -> Result<(), crate::Error> {
     match document {
         Kml::KmlDocument(doc) => {
             for element in doc.elements {
-                collect(element, lg, out)?;
+                collect(element, lg, styles, out)?;
             }
         }
         Kml::Document { elements, attrs } => {
@@ -139,7 +189,7 @@ fn collect(document: Kml<f64>, lg: Lang, out: &mut Vec<PlaceNode>) -> Result<(),
             let visibility = visible(metadata(&elements, "visibility").as_deref());
             let mut children = Vec::new();
             for element in elements {
-                collect(element, lg, &mut children)?;
+                collect(element, lg, styles, &mut children)?;
             }
             let mut node = PlaceNode::folder(
                 name,
@@ -154,7 +204,7 @@ fn collect(document: Kml<f64>, lg: Lang, out: &mut Vec<PlaceNode>) -> Result<(),
             let visibility = visible(metadata(&folder.elements, "visibility").as_deref());
             let mut children = Vec::new();
             for element in folder.elements {
-                collect(element, lg, &mut children)?;
+                collect(element, lg, styles, &mut children)?;
             }
             let mut node = PlaceNode::folder(
                 folder
@@ -177,15 +227,31 @@ fn collect(document: Kml<f64>, lg: Lang, out: &mut Vec<PlaceNode>) -> Result<(),
                         .find(|entry| entry.name == "visibility")
                         .and_then(|entry| entry.content.as_deref()),
                 );
-                let mut node = PlaceNode::marker(Placemark {
-                    name: pm
+                let attributes = extra::attributes(&pm.children);
+                let titled = pm.name.as_deref().is_none_or(extra::is_generic_name);
+                let name = match extra::label(&attributes) {
+                    Some(label) if titled => label,
+                    _ => pm
                         .name
                         .map(|s| s.trim().to_owned())
                         .unwrap_or_else(|| lg.text("placemarks-fallback-name").into()),
-                    desc: pm.description.unwrap_or_default().trim().to_owned(),
+                };
+                let desc = pm.description.unwrap_or_default().trim().to_owned();
+                let desc = if extra::description_repeats(&desc, &attributes) {
+                    String::new()
+                } else {
+                    desc
+                };
+                let line_style = extra::inline_style(&pm.children)
+                    .or_else(|| pm.style_url.as_deref().and_then(|url| styles.resolve(url)));
+                let mut node = PlaceNode::marker(Placemark {
+                    name,
+                    desc,
                     lat,
                     lon,
                     paths: pm.geometry.as_ref().map(geometry_paths).unwrap_or_default(),
+                    attributes,
+                    line_style,
                 });
                 node.visible = visibility;
                 out.push(node);
@@ -279,7 +345,7 @@ fn parse_prepared_dom(xml: Vec<u8>, lg: Lang) -> Result<Places, crate::Error> {
 #[cfg(test)]
 fn places_from_document(document: Kml<f64>, lg: Lang) -> Result<Places, crate::Error> {
     let mut out = Vec::new();
-    collect(document, lg, &mut out)?;
+    collect(document, lg, &Styles::default(), &mut out)?;
     Ok(Places { roots: out })
 }
 

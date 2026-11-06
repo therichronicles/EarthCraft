@@ -69,6 +69,33 @@ pub fn project_path(basis: &Basis, rect: Rect, path: &GeoPath, runs: &mut Vec<Ve
     flush(&mut run, runs);
 }
 
+/// Where to put a label on a projected run: the point halfway along it and the
+/// text angle in radians (clockwise on screen, kept within +-90 degrees so text
+/// is never upside down). `None` when the run is shorter than `min_length`.
+pub fn label_anchor(run: &[Pos2], min_length: f32) -> Option<(Pos2, f32, f32)> {
+    let total: f32 = run.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+    if total < min_length {
+        return None;
+    }
+    let mut remaining = total * 0.5;
+    for pair in run.windows(2) {
+        let segment = pair[1] - pair[0];
+        let length = segment.length();
+        if length >= remaining && length > 0.0 {
+            let point = pair[0] + segment * (remaining / length);
+            let mut angle = segment.y.atan2(segment.x);
+            if angle > std::f32::consts::FRAC_PI_2 {
+                angle -= std::f32::consts::PI;
+            } else if angle < -std::f32::consts::FRAC_PI_2 {
+                angle += std::f32::consts::PI;
+            }
+            return Some((point, angle, total));
+        }
+        remaining -= length;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,6 +153,20 @@ mod tests {
         let (lat, lon) = *dense.points().last().unwrap();
         let end = basis.project(basis.surface_position(lat, lon), rect).unwrap();
         assert_eq!(*runs[0].last().unwrap(), end);
+    }
+
+    #[test]
+    fn label_anchor_is_the_midpoint_with_upright_text() {
+        let run = [pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(100.0, 100.0)];
+        let (point, angle, length) = label_anchor(&run, 50.0).unwrap();
+        assert_eq!(length, 200.0);
+        assert_eq!(point, pos2(100.0, 0.0));
+        assert!(angle.abs() <= std::f32::consts::FRAC_PI_2);
+        assert!(label_anchor(&run, 250.0).is_none());
+        // A line running right-to-left is flipped so text still reads left to right.
+        let backwards = [pos2(100.0, 0.0), pos2(0.0, 0.0)];
+        let (_, angle, _) = label_anchor(&backwards, 10.0).unwrap();
+        assert!(angle.abs() < 1e-6);
     }
 
     #[test]

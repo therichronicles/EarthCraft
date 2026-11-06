@@ -53,6 +53,18 @@ impl Grid {
     }
 }
 
+/// Keeps labels from piling up: one claim per label cell.
+pub struct LabelGrid(Grid);
+impl LabelGrid {
+    pub fn new(bounds: Rect) -> Self {
+        Self(Grid::new(bounds, LABEL_CELL_POINTS))
+    }
+    /// True when no earlier label took the cell containing `point`.
+    pub fn claim(&mut self, point: Pos2) -> bool {
+        self.0.claim(point)
+    }
+}
+
 /// Choose which projected markers to draw. `points` are in input (tree) order,
 /// which keeps the choice stable between frames; `bounds` contains them.
 pub fn select_markers(points: &[Pos2], bounds: Rect) -> Vec<MarkerDraw> {
