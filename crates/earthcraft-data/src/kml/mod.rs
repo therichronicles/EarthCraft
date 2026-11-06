@@ -202,13 +202,26 @@ fn first_coordinate(geometry: &Geometry<f64>) -> Option<Coord<f64>> {
     }
 }
 
+#[cfg(test)]
 fn parse_tree(txt: &str, lg: Lang) -> Result<Places, crate::Error> {
-    let xml = guard::prepare(txt)?;
+    parse_prepared(guard::prepare(txt)?, lg)
+}
+
+/// Like `parse_tree`, but frees the source text as soon as the prepared copy
+/// exists so a large import does not hold both for the whole parse.
+fn parse_owned(txt: String, lg: Lang) -> Result<Places, crate::Error> {
+    let xml = guard::prepare(&txt)?;
+    drop(txt);
+    parse_prepared(xml, lg)
+}
+
+fn parse_prepared(xml: Vec<u8>, lg: Lang) -> Result<Places, crate::Error> {
     let document = match KmlReader::<_, f64>::from_reader(xml.as_slice()).read() {
         Ok(document) => document,
         Err(::kml::Error::NoElements) => return Ok(Places::default()),
         Err(error) => return Err(error.into()),
     };
+    drop(xml);
     places_from_document(document, lg)
 }
 
@@ -234,7 +247,7 @@ pub fn load_kml(path: &str, lg: Lang) -> Result<Places, crate::Error> {
     } else {
         std::fs::read_to_string(path)?
     };
-    parse_tree(&txt, lg)
+    parse_owned(txt, lg)
 }
 
 #[cfg(test)]

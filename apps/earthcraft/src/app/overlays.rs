@@ -1,7 +1,7 @@
 use super::App;
 use earthcraft_core::camera::Basis;
 use earthcraft_data::boundaries::BoundarySnapshot;
-use eframe::egui::{self, Align2, Color32, Rect, Stroke, Vec2};
+use eframe::egui::{self, Align2, Color32, Pos2, Rect, Stroke, Vec2};
 #[cfg(test)]
 mod benchmarks;
 mod cache;
@@ -99,28 +99,33 @@ impl App {
                 painter.circle_stroke(s, 4.0, Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)));
             }
         }
-        // placemarks
-        for pm in self.placemarks.markers(true) {
-            if let Some(s) = basis.project(basis.surface_position(pm.lat, pm.lon), rect)
-                && rect.contains(s)
-            {
-                painter.circle_filled(s, 6.0, Color32::from_rgb(255, 200, 0));
-                painter.circle_stroke(s, 6.0, Stroke::new(1.5_f32, Color32::BLACK));
+        // placemarks: thin dense imports so tens of thousands of markers stay interactive
+        let font = crate::app::fonts::map_font(painter.ctx(), 13.0 * ms);
+        let visible: Vec<(Pos2, &earthcraft_core::placemark::Placemark)> = self
+            .placemarks
+            .markers(true)
+            .filter_map(|pm| {
+                basis
+                    .project(basis.surface_position(pm.lat, pm.lon), rect)
+                    .filter(|s| rect.contains(*s))
+                    .map(|s| (s, pm))
+            })
+            .collect();
+        let points: Vec<Pos2> = visible.iter().map(|(s, _)| *s).collect();
+        for draw in earthcraft_render::overlays::placemarks::select_markers(&points, rect) {
+            let (s, pm) = visible[draw.index];
+            painter.circle_filled(s, 6.0, Color32::from_rgb(255, 200, 0));
+            painter.circle_stroke(s, 6.0, Stroke::new(1.5_f32, Color32::BLACK));
+            if draw.label {
                 let tp = s + Vec2::new(9.0, -9.0);
                 painter.text(
                     tp + Vec2::new(1.0, 1.0),
                     Align2::LEFT_BOTTOM,
                     &pm.name,
-                    crate::app::fonts::map_font(painter.ctx(), 13.0 * ms),
+                    font.clone(),
                     Color32::BLACK,
                 );
-                painter.text(
-                    tp,
-                    Align2::LEFT_BOTTOM,
-                    &pm.name,
-                    crate::app::fonts::map_font(painter.ctx(), 13.0 * ms),
-                    Color32::WHITE,
-                );
+                painter.text(tp, Align2::LEFT_BOTTOM, &pm.name, font.clone(), Color32::WHITE);
             }
         }
     }
