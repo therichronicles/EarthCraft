@@ -20,10 +20,10 @@ Uma conexão com a internet é necessária para baixar os tiles do mapa.
 
 O fluxo de lançamento fornece arquivos Linux, AppImage, DEB, RPM, Flatpak e Snap;
 versões portáteis e instaladores MSI para Windows x64 e ARM64; e um arquivo
-para FreeBSD x86-64. Os downloads para macOS continuam como DMGs para Apple Silicon.
+para FreeBSD x86-64. Os downloads para macOS são DMGs para Apple Silicon e Intel.
 Veja o [guia de lançamento](docs/RELEASING.md) para requisitos e instalação.
 
-**Downloads para macOS (Apple Silicon):** Abra o DMG e arraste o EarthCraft para Aplicativos.
+**Downloads para macOS (Apple Silicon `macos-arm64`, Intel `macos-x64`):** Abra o DMG e arraste o EarthCraft para Aplicativos.
 O app não é notarizado, então o Gatekeeper pode bloquear a primeira abertura.
 Tente abrir uma vez, feche o aviso e acesse **Ajustes do Sistema → Privacidade e
 Segurança → Abrir Mesmo Assim** para o EarthCraft. Confirme em **Abrir**.

@@ -20,10 +20,10 @@ An internet connection is required to download map tiles.
 
 The release workflow provides Linux archives, AppImage, DEB, RPM, Flatpak and Snap;
 Windows portable builds and MSI installers for x64 and ARM64; and a FreeBSD
-x86-64 archive. macOS downloads remain Apple Silicon DMGs. See the
+x86-64 archive. macOS downloads are DMGs for Apple Silicon and Intel. See the
 [release guide](docs/RELEASING.md) for runtime requirements and installation.
 
-**macOS downloads (Apple Silicon):** Open the DMG and drag EarthCraft to Applications. The app
+**macOS downloads (Apple Silicon `macos-arm64`, Intel `macos-x64`):** Open the DMG and drag EarthCraft to Applications. The app
 is not notarized, so Gatekeeper may block the first launch. Try opening it once,
 dismiss the warning, then go to **System Settings → Privacy & Security → Open
 Anyway** for EarthCraft and confirm **Open**. See [Apple's instructions](https://support.apple.com/en-us/102445).

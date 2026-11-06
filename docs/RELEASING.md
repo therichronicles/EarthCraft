@@ -3,7 +3,7 @@
 The [release workflow](../.github/workflows/release.yml) builds locked release
 binaries with Rust 1.95 (Flatpak builds use its Rust SDK extension). Portable archives contain the application executable;
 native installers and Linux bundles also contain their desktop integration and
-runtime/package metadata. macOS keeps its Apple Silicon DMG and a ZIP of that
+runtime/package metadata. macOS keeps its Apple Silicon and Intel DMGs, each with a ZIP of that
 same signed app bundle for in-app updates.
 These artifacts use `--no-default-features`: experimental GPU globe rendering is excluded
 from release downloads on every platform. CPU rendering remains the default.
@@ -22,8 +22,9 @@ application binaries: every release still builds and packages its tagged source.
 | Windows ARM64 | `windows-arm64-portable.zip`, `windows-arm64.msi` |
 | FreeBSD x86-64 | `freebsd-x64.tar.gz` |
 | macOS Apple Silicon (ARM64) | `macos-arm64.dmg` containing `EarthCraft.app`; `macos-arm64-update.zip` for the updater |
+| macOS Intel (x86-64) | `macos-x64.dmg` containing `EarthCraft.app`; `macos-x64-update.zip` for the updater |
 
-One `SHA256SUMS.txt` lists all 22 release assets, including AppImage zsync metadata.
+One `SHA256SUMS.txt` lists all 24 release assets, including AppImage zsync metadata.
 Publication first verifies the exact asset set and every checksum; a missing format
 or unexpected build file prevents publication. Preview artifacts retain
 individual `.sha256` files; publication verifies and consolidates them.
@@ -33,8 +34,8 @@ GTK 3, libudev and a working graphics driver. AppImage bundles include GTK libra
 resources through linuxdeploy's GTK plugin. FreeBSD builds run in a FreeBSD 14.5
 VM and require GTK 3, libxkbcommon, libudev-devd, libinotify and a working graphics driver at runtime.
 macOS bundles target macOS 11 or newer and are ad-hoc signed, without a
-Developer ID certificate or notarization. The ARM64 build packages `EarthCraft.app`
-directly into a DMG. Packaging verifies its ARM64 Mach-O header, embeds the padded
+Developer ID certificate or notarization. The ARM64 and Intel (x86-64) builds each package `EarthCraft.app`
+directly into a DMG. Packaging verifies the thin Mach-O header for the target architecture, embeds the padded
 macOS icon, then signs and verifies the assembled app. Ad-hoc signing does not
 establish a trusted publisher or remove Gatekeeper prompts.
 Windows/Linux/FreeBSD portable archives contain just the executable at their root. On macOS,
@@ -200,7 +201,7 @@ personal access token are needed.
   GNOME Platform/SDK 49 and the Rust SDK extension
   for Freedesktop 25.08. Snap uses Snapcraft's Rust plugin with Rust 1.95.0,
   core22 and the GNOME extension. These tools are not application dependencies.
-- Run the manual preview on the reviewed commit and verify all 22 assets,
+- Run the manual preview on the reviewed commit and verify all 24 assets,
   their checksums and actual application startup on each platform. A preview
   never publishes. No release tag is needed for it.
 - Review generated release notes before tagging. Use a new matching version/tag;
@@ -265,7 +266,10 @@ read-only DMG and verifies the disk image.
 arrow in `assets/packaging/macos/dmg-background{,@2x}.png` and an `/Applications` symlink. No
 Finder automation or app runtime dependency is needed. The standard and Retina
 backgrounds are checked-in image assets; packaging uses them directly.
-To reproduce the Apple Silicon macOS artifact:
+To reproduce the Apple Silicon macOS artifact (for Intel, use `x86_64-apple-darwin` and
+`macos-x64` in place of `aarch64-apple-darwin` and `macos-arm64`, on an Intel Mac or
+with the target added to a cross-compiling toolchain; the helper checks the executable's
+architecture):
 
 ```sh
 cargo install cargo-packager --version 0.11.8 --locked

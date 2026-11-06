@@ -28,6 +28,7 @@ fn platform_suffix_for(os: &str, architecture: &str) -> Option<&'static str> {
         ("windows", "x86_64") => Some("windows-x64-portable.zip"),
         ("windows", "aarch64") => Some("windows-arm64-portable.zip"),
         ("macos", "aarch64") => Some("macos-arm64-update.zip"),
+        ("macos", "x86_64") => Some("macos-x64-update.zip"),
         _ => None,
     }
 }
@@ -322,7 +323,11 @@ mod tests {
             platform_suffix_for("macos", "aarch64"),
             Some("macos-arm64-update.zip")
         );
-        assert_eq!(platform_suffix_for("macos", "x86_64"), None);
+        assert_eq!(
+            platform_suffix_for("macos", "x86_64"),
+            Some("macos-x64-update.zip")
+        );
+        assert_eq!(platform_suffix_for("macos", "x86"), None);
     }
     #[test]
     fn managed_locations_never_enable_binary_replacement() {
