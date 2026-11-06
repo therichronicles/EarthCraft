@@ -39,8 +39,8 @@ def artifact(output, extension):
     return paths[0]
 
 
-def app_bundle(version, binary, output):
-    config = configuration(version, "aarch64-apple-darwin", binary, output, "app")
+def app_bundle(version, target, binary, output):
+    config = configuration(version, target, binary, output, "app")
     # Override the packager's timestamp build number with our numeric release
     # version, preserving the existing bundle metadata and updater contract.
     plist_path = output.parent / "Info.plist"

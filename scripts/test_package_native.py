@@ -21,19 +21,21 @@ class NativePackagingTests(unittest.TestCase):
     def test_complete_asset_set_requires_each_format_and_valid_checksums(self):
         version = release.workspace_version()
         expected = release.expected_assets(version)
-        self.assertEqual(len(expected), 22)
+        self.assertEqual(len(expected), 24)
         required = {
             f"earthcraft-{version}-freebsd-x64.tar.gz",
             f"earthcraft-{version}-windows-x64.exe",
             f"earthcraft-{version}-macos-arm64.dmg",
             f"earthcraft-{version}-macos-arm64-update.zip",
+            f"earthcraft-{version}-macos-x64.dmg",
+            f"earthcraft-{version}-macos-x64-update.zip",
         }
         for architecture in ("x64", "arm64"):
             for extension in ("tar.gz", "AppImage", "AppImage.zsync", "deb", "rpm", "flatpak", "snap"):
                 required.add(f"earthcraft-{version}-linux-{architecture}.{extension}")
         self.assertTrue(required <= expected)
         self.assertFalse(any("windows-x86" in name for name in expected))
-        self.assertFalse(any("macos-x64" in name or "universal" in name for name in expected))
+        self.assertFalse(any("universal" in name for name in expected))
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
             for name in expected:
@@ -153,6 +155,7 @@ class NativePackagingTests(unittest.TestCase):
             root = Path(temporary)
 
             def package(config):
+                self.assertEqual(config["targetTriple"], target)
                 self.assertEqual(config["formats"], ["app"])
                 self.assertEqual(config["identifier"], tools.APP_ID)
                 self.assertEqual(config["macos"]["minimumSystemVersion"], "11.0")
@@ -165,9 +168,11 @@ class NativePackagingTests(unittest.TestCase):
                 self.assertTrue(plist["NSHighResolutionCapable"])
                 (Path(config["outDir"]) / "EarthCraft.app").mkdir(parents=True)
 
-            with mock.patch.object(tools, "run", side_effect=package):
-                self.assertEqual(tools.app_bundle("1.2.3-rc.1", root / "earthcraft", root / "output"),
-                                 root / "output/EarthCraft.app")
+            for target in ("aarch64-apple-darwin", "x86_64-apple-darwin"):
+                output = root / target
+                with self.subTest(target=target), mock.patch.object(tools, "run", side_effect=package):
+                    self.assertEqual(tools.app_bundle("1.2.3-rc.1", target, root / "earthcraft", output),
+                                     output / "EarthCraft.app")
 
     def test_source_build_manifests_keep_cpu_only_locked_builds_and_integration(self):
         flatpak = json.loads((release.ROOT / "packaging/flatpak.json").read_text())

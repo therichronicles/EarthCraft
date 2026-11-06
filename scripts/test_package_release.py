@@ -75,18 +75,27 @@ class ReleasePackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             binary = root / "binary"
-            for header in [
-                b"invalid",
-                struct.pack("<II", 0xFEEDFACF, 0x01000007),
-                bytes.fromhex("ca fe ba be 00 00 00 02"),
+            arm64 = struct.pack("<II", 0xFEEDFACF, 0x0100000C)
+            x86_64 = struct.pack("<II", 0xFEEDFACF, 0x01000007)
+            universal = bytes.fromhex("ca fe ba be 00 00 00 02")
+            for target, architecture, headers in [
+                ("aarch64-apple-darwin", "ARM64", [b"invalid", x86_64, universal]),
+                ("x86_64-apple-darwin", "x86-64", [b"invalid", arm64, universal]),
             ]:
-                binary.write_bytes(header)
-                with self.subTest(header=header), self.assertRaisesRegex(
-                    ValueError, "ARM64 Mach-O"
-                ):
-                    release.package(
-                        release.workspace_version(), "aarch64-apple-darwin", binary, root / "out"
-                    )
+                for header in headers:
+                    binary.write_bytes(header)
+                    with self.subTest(target=target, header=header), self.assertRaisesRegex(
+                        ValueError, f"{architecture} Mach-O"
+                    ):
+                        release.package(
+                            release.workspace_version(), target, binary, root / "out"
+                        )
+
+    def test_macos_intel_assets_are_expected(self):
+        version = release.workspace_version()
+        assets = release.expected_assets(version)
+        self.assertIn(f"earthcraft-{version}-macos-x64.dmg", assets)
+        self.assertIn(f"earthcraft-{version}-macos-x64-update.zip", assets)
 
     def test_version_and_binary_validation(self):
         with self.assertRaises(ValueError):

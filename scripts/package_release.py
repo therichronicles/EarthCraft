@@ -22,6 +22,12 @@ TARGETS = {
     "x86_64-pc-windows-msvc": "windows-x64-portable",
     "aarch64-pc-windows-msvc": "windows-arm64-portable",
     "aarch64-apple-darwin": "macos-arm64",
+    "x86_64-apple-darwin": "macos-x64",
+}
+# Mach-O CPU types (CPU_ARCH_ABI64 | CPU_TYPE_*) for thin macOS executables.
+MACHO_CPU_TYPES = {
+    "aarch64-apple-darwin": (0x0100000C, "ARM64"),
+    "x86_64-apple-darwin": (0x01000007, "x86-64"),
 }
 VERSION = re.compile(
     r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
@@ -59,14 +65,16 @@ def validate_package_input(version, target, binary):
 
 def package(version, target, binary, output):
     validate_package_input(version, target, binary)
-    if target == "aarch64-apple-darwin":
-        # Require a thin ARM64 Mach-O executable.
+    if target in MACHO_CPU_TYPES:
+        # Require a thin Mach-O executable for the target architecture.
         mach_o_64_magic = 0xFEEDFACF
-        cpu_type_arm64 = 0x0100000C
+        cpu_type, architecture = MACHO_CPU_TYPES[target]
         with binary.open("rb") as stream:
             header = stream.read(8)
-        if header != struct.pack("<II", mach_o_64_magic, cpu_type_arm64):
-            raise ValueError("macOS release executable must be an ARM64 Mach-O binary")
+        if header != struct.pack("<II", mach_o_64_magic, cpu_type):
+            raise ValueError(
+                f"macOS release executable must be an {architecture} Mach-O binary"
+            )
     output.mkdir(parents=True, exist_ok=True)
     name = f"earthcraft-{version}-{TARGETS[target]}"
     extension = ".dmg" if "apple" in target else ".zip" if "windows" in target else ".tar.gz"
@@ -76,7 +84,7 @@ def package(version, target, binary, output):
         payload.mkdir()
         if "apple" in target:
             import package_tools
-            app = package_tools.app_bundle(version, binary.resolve(), payload)
+            app = package_tools.app_bundle(version, target, binary.resolve(), payload)
             executable = app / "Contents/MacOS/earthcraft"
         else:
             executable = payload / ("earthcraft.exe" if "windows" in target else "earthcraft")
