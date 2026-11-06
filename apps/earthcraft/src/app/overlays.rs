@@ -99,11 +99,24 @@ impl App {
                 painter.circle_stroke(s, 4.0, Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)));
             }
         }
+        // lines and outlines imported with placemarks (for example fiber routes)
+        let path_stroke = Stroke::new(1.5_f32 * ms, Color32::from_rgb(255, 140, 0));
+        let mut runs = Vec::new();
+        for pm in self.placemarks.markers(true) {
+            for path in &pm.paths {
+                earthcraft_render::overlays::paths::project_path(basis, rect, path, &mut runs);
+                for run in runs.drain(..) {
+                    painter.add(egui::Shape::line(run, path_stroke));
+                }
+            }
+        }
         // placemarks: thin dense imports so tens of thousands of markers stay interactive
         let font = crate::app::fonts::map_font(painter.ctx(), 13.0 * ms);
         let visible: Vec<(Pos2, &earthcraft_core::placemark::Placemark)> = self
             .placemarks
             .markers(true)
+            // Lines and outlines draw their own geometry; only plain places get a pin.
+            .filter(|pm| pm.paths.is_empty())
             .filter_map(|pm| {
                 basis
                     .project(basis.surface_position(pm.lat, pm.lon), rect)

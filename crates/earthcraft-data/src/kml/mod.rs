@@ -2,12 +2,13 @@
 use ::kml::{
     Kml, KmlWriter,
     types::{
-        Coord, Element, Folder, Geometry, KmlDocument, KmlVersion, Placemark as KmlPlacemark, Point,
+        Coord, Element, Folder, Geometry, KmlDocument, KmlVersion, LineString, LinearRing,
+        Placemark as KmlPlacemark, Point, Polygon,
     },
 };
 use earthcraft_core::{
     language::Lang,
-    placemark::{PlaceItem, PlaceNode, Placemark, Places},
+    placemark::{GeoPath, PlaceItem, PlaceNode, Placemark, Places},
 };
 use quick_xml::{
     Writer,
@@ -36,7 +37,13 @@ fn encode(node: &PlaceNode) -> Result<Kml<f64>, crate::Error> {
             Kml::Placemark(KmlPlacemark {
                 name: Some(pm.name.clone()),
                 description: Some(pm.desc.clone()),
-                geometry: Some(Geometry::Point(Point::new(pm.lon, pm.lat, Some(0.0)))),
+                geometry: Some(match pm.paths.as_slice() {
+                    [] => Geometry::Point(Point::new(pm.lon, pm.lat, Some(0.0))),
+                    [path] => path_geometry(path),
+                    paths => Geometry::MultiGeometry(::kml::types::MultiGeometry::new(
+                        paths.iter().map(path_geometry).collect(),
+                    )),
+                }),
                 children: vec![visibility],
                 ..Default::default()
             })
@@ -178,6 +185,7 @@ fn collect(document: Kml<f64>, lg: Lang, out: &mut Vec<PlaceNode>) -> Result<(),
                     desc: pm.description.unwrap_or_default().trim().to_owned(),
                     lat,
                     lon,
+                    paths: pm.geometry.as_ref().map(geometry_paths).unwrap_or_default(),
                 });
                 node.visible = visibility;
                 out.push(node);
@@ -200,6 +208,39 @@ fn first_coordinate(geometry: &Geometry<f64>) -> Option<Coord<f64>> {
             collection.geometries.iter().find_map(first_coordinate)
         }
         _ => None,
+    }
+}
+
+/// Lines and outlines a placemark draws. Points contribute none, and vertices
+/// outside the valid coordinate range are dropped rather than failing the import.
+fn geometry_paths(geometry: &Geometry<f64>) -> Vec<GeoPath> {
+    fn ring(closed: bool, coords: &[Coord<f64>]) -> Option<GeoPath> {
+        GeoPath::new(closed, coords.iter().map(|c| (c.y, c.x)))
+    }
+    match geometry {
+        Geometry::LineString(line) => ring(false, &line.coords).into_iter().collect(),
+        Geometry::LinearRing(r) => ring(true, &r.coords).into_iter().collect(),
+        Geometry::Polygon(polygon) => std::iter::once(&polygon.outer)
+            .chain(&polygon.inner)
+            .filter_map(|r| ring(true, &r.coords))
+            .collect(),
+        Geometry::MultiGeometry(collection) => {
+            collection.geometries.iter().flat_map(geometry_paths).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn path_geometry(path: &GeoPath) -> Geometry<f64> {
+    let coords: Vec<Coord<f64>> = path
+        .points()
+        .iter()
+        .map(|&(lat, lon)| Coord::new(lon, lat, None))
+        .collect();
+    if path.is_closed() {
+        Geometry::Polygon(Polygon::new(LinearRing::from(coords), Vec::new()))
+    } else {
+        Geometry::LineString(LineString::from(coords))
     }
 }
 

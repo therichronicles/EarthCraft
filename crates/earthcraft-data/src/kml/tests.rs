@@ -33,6 +33,7 @@ fn kml_roundtrip_preserves_names_descriptions_and_coordinate_order() {
         desc: "A & B > C".into(),
         lat: -23.5,
         lon: -46.6,
+        ..Default::default()
     }];
     save_kml(path.to_str().unwrap(), &places(&marks)).unwrap();
     let loaded: Vec<_> = load_kml(path.to_str().unwrap(), Lang::PtBr)
@@ -188,6 +189,7 @@ fn invalid_import_and_export_coordinates_use_shared_validation() {
         desc: String::new(),
         lat: 91.0,
         lon: 0.0,
+        ..Default::default()
     };
     assert!(matches!(
         save_kml(path.to_str().unwrap(), &places(&[pm])),
@@ -421,4 +423,44 @@ fn streaming_reader_matches_whole_document_decoding() {
         }
     }
     assert!(compared > 2000, "only {compared} comparable documents");
+}
+
+#[test]
+fn lines_and_outlines_are_imported_and_survive_a_save() {
+    let xml = r#"<kml><Document>
+      <Placemark><name>Fiber</name><LineString><coordinates>10,20,0 11,21,0 12,22,0</coordinates></LineString></Placemark>
+      <Placemark><name>Area</name><Polygon><outerBoundaryIs><LinearRing><coordinates>0,0 1,0 1,1 0,0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+      <Placemark><name>Bundle</name><MultiGeometry>
+        <LineString><coordinates>1,1 2,2</coordinates></LineString>
+        <LineString><coordinates>3,3 4,4 5,95 5,5</coordinates></LineString>
+        <Point><coordinates>9,9</coordinates></Point></MultiGeometry></Placemark>
+      <Placemark><name>Pin</name><Point><coordinates>5,6</coordinates></Point></Placemark>
+    </Document></kml>"#;
+    let tree = parse_tree(xml, Lang::En).unwrap();
+    let marks: Vec<_> = tree.markers(false).cloned().collect();
+    assert_eq!(marks.len(), 4);
+    assert_eq!((marks[0].lat, marks[0].lon), (20.0, 10.0));
+    assert_eq!(marks[0].paths.len(), 1);
+    assert!(!marks[0].paths[0].is_closed());
+    assert_eq!(marks[0].paths[0].points(), [(20.0, 10.0), (21.0, 11.0), (22.0, 12.0)]);
+    assert!(marks[1].paths[0].is_closed());
+    // Out-of-range vertices are dropped instead of failing the import.
+    assert_eq!(marks[2].paths.len(), 2);
+    assert_eq!(marks[2].paths[1].points().len(), 3);
+    assert!(marks[3].paths.is_empty());
+
+    let dir = std::env::temp_dir().join(format!("earthcraft-paths-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["paths.kml", "paths.kmz"] {
+        let path = dir.join(name);
+        save_kml(path.to_str().unwrap(), &tree).unwrap();
+        let reloaded = load_kml(path.to_str().unwrap(), Lang::En).unwrap();
+        let again: Vec<_> = reloaded.markers(false).cloned().collect();
+        assert_eq!(again.len(), 4, "{name}");
+        for (before, after) in marks.iter().zip(&again) {
+            assert_eq!(before.paths, after.paths, "{name}: {}", before.name);
+            assert_eq!((before.lat, before.lon), (after.lat, after.lon));
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }

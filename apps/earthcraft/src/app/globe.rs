@@ -478,6 +478,7 @@ impl App {
                     desc: String::new(),
                     lat: la,
                     lon: lo,
+                    ..Default::default()
                 }),
                 1 => self.fly_to(
                     la,

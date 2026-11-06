@@ -158,12 +158,14 @@ fn nested_tree_fits_default_sidebar_with_compact_rows_and_vector_icons() {
             desc: String::new(),
             lat: 34.0,
             lon: -118.0,
+            ..Default::default()
         }),
         PlaceNode::marker(Placemark {
             name: "Like's Thai and Chinese Food Takeout".into(),
             desc: String::new(),
             lat: 34.0,
             lon: -118.0,
+            ..Default::default()
         }),
     ];
     for name in [
@@ -241,6 +243,7 @@ fn row_selection_accepts_clicks_past_the_name() {
         desc: String::new(),
         lat: 27.0,
         lon: 86.0,
+        ..Default::default()
     });
     let mut selection = None;
     let mut action = None;
