@@ -193,9 +193,9 @@ without changing children's own visibility. File jobs capture the whole tree
 at submission; decoding, encoding and filesystem work stay off the UI thread.
 KML/KMZ I/O and screenshot encoding use an ordered bounded file service.
 KMZ imports select the first KML entry in archive order without extracting
-resources to disk. The entry is inflated with a 128 MiB limit on the bytes
+resources to disk. The entry is inflated with a 512 MiB limit on the bytes
 actually decompressed (entry headers are untrusted), then takes the same XML
-preparation pass and GeoRust `KmlReader` path as a plain KML file, so folder
+preparation pass as a plain KML file. The guarded XML is then walked once; each Placemark is decoded on its own by GeoRust's `KmlReader`, so the document is never held as a DOM, so folder
 visibility and malformed-document handling match. Archive and reader errors are
 reported directly. Export writes the supported places tree as compressed
 `doc.kml`. Embedded resources, styles and network links retain the existing
