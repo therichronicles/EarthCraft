@@ -91,6 +91,10 @@ impl Places {
         self.markers(false).next()
     }
     pub fn markers(&self, visible_only: bool) -> impl Iterator<Item = &Placemark> {
+        self.markers_with_id(visible_only).map(|(_, marker)| marker)
+    }
+    /// Like [`Self::markers`], with the tree id each placemark is selected by.
+    pub fn markers_with_id(&self, visible_only: bool) -> impl Iterator<Item = (u64, &Placemark)> {
         let mut stack = vec![self.roots.iter()];
         std::iter::from_fn(move || {
             loop {
@@ -101,12 +105,16 @@ impl Places {
                     }
                     Some(node) if visible_only && !node.visible => {}
                     Some(node) => match &node.item {
-                        PlaceItem::Marker(marker) => return Some(marker),
+                        PlaceItem::Marker(marker) => return Some((node.id, marker)),
                         PlaceItem::Folder { children, .. } => stack.push(children.iter()),
                     },
                 }
             }
         })
+    }
+    pub fn find_marker(&self, id: u64) -> Option<&Placemark> {
+        self.markers_with_id(false)
+            .find_map(|(marker_id, marker)| (marker_id == id).then_some(marker))
     }
     pub fn find_mut(&mut self, id: u64) -> Option<&mut PlaceNode> {
         fn find(nodes: &mut [PlaceNode], id: u64) -> Option<&mut PlaceNode> {
@@ -182,6 +190,7 @@ mod tests {
             desc: String::new(),
             lat: 27.0,
             lon: 86.0,
+            ..Default::default()
         });
         let mark_id = mark.id();
         let nested = PlaceNode::folder("Asia".into(), String::new(), false, vec![mark]);

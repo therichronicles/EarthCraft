@@ -6,6 +6,8 @@ use earthcraft_data::boundaries::{
 use emath::{Pos2, Rect};
 pub mod grid;
 mod labels;
+pub mod paths;
+pub mod placemarks;
 mod spatial;
 mod worker;
 pub use labels::LabelIndex;

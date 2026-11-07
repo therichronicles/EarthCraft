@@ -33,6 +33,7 @@ fn kml_roundtrip_preserves_names_descriptions_and_coordinate_order() {
         desc: "A & B > C".into(),
         lat: -23.5,
         lon: -46.6,
+        ..Default::default()
     }];
     save_kml(path.to_str().unwrap(), &places(&marks)).unwrap();
     let loaded: Vec<_> = load_kml(path.to_str().unwrap(), Lang::PtBr)
@@ -188,6 +189,7 @@ fn invalid_import_and_export_coordinates_use_shared_validation() {
         desc: String::new(),
         lat: 91.0,
         lon: 0.0,
+        ..Default::default()
     };
     assert!(matches!(
         save_kml(path.to_str().unwrap(), &places(&[pm])),
@@ -250,4 +252,314 @@ fn tree_roundtrip_preserves_distinct_folders_visibility_and_empty_groups() {
             .collect::<Vec<_>>(),
         ["Peak", "Other"]
     );
+}
+
+/// Small deterministic generator so the comparison needs no extra dependency.
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn below(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
+    fn chance(&mut self, percent: u64) -> bool {
+        self.below(100) < percent
+    }
+}
+
+fn text(rng: &mut Rng) -> String {
+    const PARTS: [&str; 9] = [
+        "Alpha",
+        " padded ",
+        "A &amp; B",
+        "caf\u{e9}",
+        "&lt;tag&gt;",
+        "&#38;x",
+        "",
+        "two  spaces",
+        "<![CDATA[raw &amp; <b>]]>",
+    ];
+    PARTS[rng.below(PARTS.len() as u64) as usize].to_owned()
+}
+
+fn field(rng: &mut Rng, p: &str, name: &str) -> String {
+    match rng.below(5) {
+        0 => String::new(),
+        1 => format!("<{p}{name}/>"),
+        _ => {
+            let body = if name == "visibility" {
+                ["0", "1", "false", "true", " 0 ", ""][rng.below(6) as usize].to_owned()
+            } else {
+                text(rng)
+            };
+            format!("<{p}{name}>{body}</{p}{name}>")
+        }
+    }
+}
+
+fn geometry(rng: &mut Rng, p: &str) -> String {
+    let c = |rng: &mut Rng| {
+        format!(
+            "{:.4},{:.4},{}",
+            rng.below(36000) as f64 / 100.0 - 180.0,
+            rng.below(17000) as f64 / 100.0 - 85.0,
+            rng.below(100)
+        )
+    };
+    match rng.below(7) {
+        0 => String::new(),
+        1 => format!("<{p}Point/>"),
+        2 | 3 => format!(
+            "<{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point>",
+            c(rng)
+        ),
+        4 => format!(
+            "<{p}LineString><{p}coordinates>{} {} {}</{p}coordinates></{p}LineString>",
+            c(rng),
+            c(rng),
+            c(rng)
+        ),
+        5 => format!(
+            "<{p}Polygon><{p}outerBoundaryIs><{p}LinearRing><{p}coordinates>{} {} {}</{p}coordinates></{p}LinearRing></{p}outerBoundaryIs></{p}Polygon>",
+            c(rng),
+            c(rng),
+            c(rng)
+        ),
+        _ => format!(
+            "<{p}MultiGeometry><{p}Point/><{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point></{p}MultiGeometry>",
+            c(rng)
+        ),
+    }
+}
+
+fn placemark(rng: &mut Rng, p: &str) -> String {
+    let mut parts = vec![
+        field(rng, p, "name"),
+        field(rng, p, "description"),
+        field(rng, p, "visibility"),
+        geometry(rng, p),
+    ];
+    if rng.chance(20) {
+        parts.push(format!("<{p}ExtendedData><{p}Data name=\"k\"><{p}value>v</{p}value></{p}Data></{p}ExtendedData>"));
+    }
+    if rng.chance(15) {
+        parts.push("<!-- note -->".into());
+    }
+    // Field order varies, like real exports.
+    for i in (1..parts.len()).rev() {
+        parts.swap(i, rng.below(i as u64 + 1) as usize);
+    }
+    format!("<{p}Placemark>{}</{p}Placemark>", parts.concat())
+}
+
+fn container(rng: &mut Rng, p: &str, depth: u32) -> String {
+    let tag = if rng.chance(50) { "Folder" } else { "Document" };
+    let mut parts = vec![
+        field(rng, p, "name"),
+        field(rng, p, "description"),
+        field(rng, p, "visibility"),
+    ];
+    // Repeated metadata: the first occurrence with text must win.
+    for name in ["name", "description", "visibility"] {
+        if rng.chance(35) {
+            parts.push(field(rng, p, name));
+        }
+    }
+    if rng.chance(30) {
+        parts.push(format!(
+            "<{p}Style id=\"s\"><{p}IconStyle><{p}scale>1</{p}scale></{p}IconStyle></{p}Style>"
+        ));
+    }
+    if rng.chance(10) {
+        parts.push(format!(
+            "<{p}NetworkLink><{p}name>skip</{p}name><{p}Placemark/></{p}NetworkLink>"
+        ));
+    }
+    for _ in 0..rng.below(5) {
+        parts.push(if depth < 4 && rng.chance(30) {
+            container(rng, p, depth + 1)
+        } else {
+            placemark(rng, p)
+        });
+    }
+    for i in (1..parts.len()).rev() {
+        parts.swap(i, rng.below(i as u64 + 1) as usize);
+    }
+    format!("<{p}{tag}>{}</{p}{tag}>", parts.concat())
+}
+
+fn document(rng: &mut Rng) -> String {
+    let p = if rng.chance(25) { "k:" } else { "" };
+    let ns = if p.is_empty() {
+        ""
+    } else {
+        " xmlns:k=\"http://www.opengis.net/kml/2.2\""
+    };
+    let body: String = (0..1 + rng.below(3))
+        .map(|_| {
+            if rng.chance(70) {
+                container(rng, p, 0)
+            } else {
+                placemark(rng, p)
+            }
+        })
+        .collect();
+    match rng.below(4) {
+        0 => body,
+        _ => format!("<{p}kml{ns}>{body}</{p}kml>"),
+    }
+}
+
+fn dump(nodes: &[PlaceNode], out: &mut String) {
+    for node in nodes {
+        match &node.item {
+            PlaceItem::Marker(pm) => out.push_str(&format!(
+                "M({:?},{:?},{},{},{});",
+                pm.name, pm.desc, pm.lat, pm.lon, node.visible
+            )),
+            PlaceItem::Folder {
+                name,
+                description,
+                document,
+                children,
+            } => {
+                out.push_str(&format!(
+                    "F({name:?},{description:?},{document},{});[",
+                    node.visible
+                ));
+                dump(children, out);
+                out.push(']');
+            }
+        }
+    }
+}
+
+#[test]
+fn streaming_reader_matches_whole_document_decoding() {
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+    let mut compared = 0;
+    for case in 0..3000 {
+        let xml = document(&mut rng);
+        let Ok(prepared) = guard::prepare(&xml) else {
+            continue;
+        };
+        let dom = parse_prepared_dom(prepared.clone(), Lang::En);
+        let stream = stream::parse(&prepared, Lang::En);
+        match (dom, stream) {
+            (Ok(a), Ok(b)) => {
+                let (mut x, mut y) = (String::new(), String::new());
+                dump(&a.roots, &mut x);
+                dump(&b.roots, &mut y);
+                assert_eq!(x, y, "case {case}: {xml}");
+                compared += 1;
+            }
+            (Err(_), Err(_)) => {}
+            (a, b) => panic!(
+                "case {case}: dom ok={} stream ok={}: {xml}",
+                a.is_ok(),
+                b.is_ok()
+            ),
+        }
+    }
+    assert!(compared > 2000, "only {compared} comparable documents");
+}
+
+#[test]
+fn lines_and_outlines_are_imported_and_survive_a_save() {
+    let xml = r#"<kml><Document>
+      <Placemark><name>Fiber</name><LineString><coordinates>10,20,0 11,21,0 12,22,0</coordinates></LineString></Placemark>
+      <Placemark><name>Area</name><Polygon><outerBoundaryIs><LinearRing><coordinates>0,0 1,0 1,1 0,0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+      <Placemark><name>Bundle</name><MultiGeometry>
+        <LineString><coordinates>1,1 2,2</coordinates></LineString>
+        <LineString><coordinates>3,3 4,4 5,95 5,5</coordinates></LineString>
+        <Point><coordinates>9,9</coordinates></Point></MultiGeometry></Placemark>
+      <Placemark><name>Pin</name><Point><coordinates>5,6</coordinates></Point></Placemark>
+    </Document></kml>"#;
+    let tree = parse_tree(xml, Lang::En).unwrap();
+    let marks: Vec<_> = tree.markers(false).cloned().collect();
+    assert_eq!(marks.len(), 4);
+    assert_eq!((marks[0].lat, marks[0].lon), (20.0, 10.0));
+    assert_eq!(marks[0].paths.len(), 1);
+    assert!(!marks[0].paths[0].is_closed());
+    assert_eq!(
+        marks[0].paths[0].points(),
+        [(20.0, 10.0), (21.0, 11.0), (22.0, 12.0)]
+    );
+    assert!(marks[1].paths[0].is_closed());
+    // Out-of-range vertices are dropped instead of failing the import.
+    assert_eq!(marks[2].paths.len(), 2);
+    assert_eq!(marks[2].paths[1].points().len(), 3);
+    assert!(marks[3].paths.is_empty());
+
+    let dir = std::env::temp_dir().join(format!("earthcraft-paths-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["paths.kml", "paths.kmz"] {
+        let path = dir.join(name);
+        save_kml(path.to_str().unwrap(), &tree).unwrap();
+        let reloaded = load_kml(path.to_str().unwrap(), Lang::En).unwrap();
+        let again: Vec<_> = reloaded.markers(false).cloned().collect();
+        assert_eq!(again.len(), 4, "{name}");
+        for (before, after) in marks.iter().zip(&again) {
+            assert_eq!(before.paths, after.paths, "{name}: {}", before.name);
+            assert_eq!((before.lat, before.lon), (after.lat, after.lon));
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn attributes_labels_and_line_styles_are_imported_and_saved() {
+    let xml = r##"<kml><Document><name>Fiber</name>
+      <Style id="blue"><LineStyle><color>ffff0000</color><width>2</width></LineStyle></Style>
+      <StyleMap id="map"><Pair><key>normal</key><styleUrl>#blue</styleUrl></Pair></StyleMap>
+      <Placemark><name>kml_7</name><description><![CDATA[<table><tr><th>OWNER</th><td>ACME</td></tr><tr><th>LABEL</th><td>72-BFO-I
+XD,1-24</td></tr></table>]]></description>
+        <styleUrl>#map</styleUrl>
+        <ExtendedData><SchemaData schemaUrl="#s"><SimpleData name="OWNER">ACME</SimpleData>
+        <SimpleData name="LABEL">72-BFO-I
+XD,1-24</SimpleData></SchemaData></ExtendedData>
+        <LineString><coordinates>1,2 3,4</coordinates></LineString></Placemark>
+      <Placemark><name>Main St</name><description>Field notes</description>
+        <ExtendedData><Data name="Owner"><value>City</value></Data></ExtendedData>
+        <Style><LineStyle><color>ff0000ff</color><width>4</width></LineStyle></Style>
+        <LineString><coordinates>5,6 7,8</coordinates></LineString></Placemark>
+    </Document></kml>"##;
+    let tree = parse_tree(xml, Lang::En).unwrap();
+    let marks: Vec<_> = tree.markers(false).cloned().collect();
+    // A generated name is replaced by the first line of LABEL; the repeated table is dropped.
+    assert_eq!(marks[0].name, "72-BFO-I");
+    assert_eq!(marks[0].desc, "");
+    assert_eq!(
+        marks[0].attributes[0],
+        ("OWNER".to_owned(), "ACME".to_owned())
+    );
+    assert_eq!(marks[0].attributes[1].1, "72-BFO-I\nXD,1-24");
+    let style = marks[0].line_style.unwrap();
+    assert_eq!((style.rgba, style.width), ([0, 0, 255, 255], 2.0));
+    // A real name and real notes stay; an inline style wins.
+    assert_eq!(marks[1].name, "Main St");
+    assert_eq!(marks[1].desc, "Field notes");
+    assert_eq!(
+        marks[1].attributes,
+        [("Owner".to_owned(), "City".to_owned())]
+    );
+    assert_eq!(marks[1].line_style.unwrap().rgba, [255, 0, 0, 255]);
+
+    let dir = std::env::temp_dir().join(format!("earthcraft-attrs-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["attrs.kml", "attrs.kmz"] {
+        let path = dir.join(name);
+        save_kml(path.to_str().unwrap(), &tree).unwrap();
+        let again: Vec<_> = load_kml(path.to_str().unwrap(), Lang::En)
+            .unwrap()
+            .markers(false)
+            .cloned()
+            .collect();
+        assert_eq!(again, marks, "{name}");
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }

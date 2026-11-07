@@ -10,6 +10,9 @@ const DESCRIPTION_ROWS: usize = 3;
 const TREE_INDENT_POINTS: f32 = 8.0;
 const TREE_ICON_SIZE_POINTS: f32 = 12.0;
 const TREE_ITEM_GAP_POINTS: f32 = 2.0;
+/// A folder with more rows than this only builds the rows in view.
+const VIRTUAL_ROWS_AFTER: usize = 200;
+const ATTRIBUTE_PANEL_HEIGHT_POINTS: f32 = 160.0;
 
 fn tree_scroll_area(height_points: f32) -> egui::ScrollArea {
     egui::ScrollArea::vertical()
@@ -66,6 +69,48 @@ fn paint_icon(ui: &egui::Ui, rect: egui::Rect, folder: bool, stroke: egui::Strok
 enum Action {
     Delete(u64),
     Move(u64, Option<u64>),
+}
+
+/// Read-only fields from the imported file (KML `ExtendedData`).
+fn attribute_panel(ui: &mut egui::Ui, id: u64, attributes: &[(String, String)], lang: Lang) {
+    if attributes.is_empty() {
+        return;
+    }
+    let heading = lang.format(
+        "places-attributes-heading",
+        &[("count", attributes.len().to_string().into())],
+    );
+    egui::CollapsingHeader::new(heading)
+        .id_salt(("place-attributes", id))
+        .default_open(true)
+        .show(ui, |ui| {
+            attribute_grid(ui, id, attributes, ATTRIBUTE_PANEL_HEIGHT_POINTS);
+        });
+}
+
+/// Scrollable key/value table of imported attributes.
+pub(in crate::app) fn attribute_grid(
+    ui: &mut egui::Ui,
+    id: u64,
+    attributes: &[(String, String)],
+    max_height: f32,
+) {
+    egui::ScrollArea::vertical()
+        .id_salt(("place-attributes-scroll", id))
+        .max_height(max_height)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            egui::Grid::new(("place-attribute-grid", id))
+                .num_columns(2)
+                .striped(true)
+                .show(ui, |ui| {
+                    for (key, value) in attributes {
+                        ui.label(egui::RichText::new(key).strong());
+                        ui.add(egui::Label::new(value).wrap().selectable(true));
+                        ui.end_row();
+                    }
+                });
+        });
 }
 
 fn description_editor(
@@ -133,20 +178,18 @@ fn row(
     if response.clicked() || response.secondary_clicked() {
         *selected = Some(id);
     }
-    if response.double_clicked()
-        && let PlaceItem::Marker(pm) = &node.item
-    {
-        *goto = Some((pm.lat, pm.lon, 3.0));
+    if response.double_clicked() {
+        *goto = fly_target(node);
     }
     response.dnd_set_drag_payload(id);
     if folder && let Some(source) = response.dnd_release_payload::<u64>() {
         *action = Some(Action::Move(*source, Some(id)));
     }
     response.context_menu(|ui| {
-        if let PlaceItem::Marker(pm) = &node.item
+        if let Some(target) = fly_target(node)
             && ui.button(lang.text("placemarks-fly-to-action")).clicked()
         {
-            *goto = Some((pm.lat, pm.lon, 3.0));
+            *goto = Some(target);
             ui.close();
         }
         if ui.button(lang.text("places-delete-action")).clicked() {
@@ -157,6 +200,13 @@ fn row(
     response
 }
 
+/// Where to fly to put a place or folder front and center: its center and an
+/// altitude that fits everything under it. `None` for an empty folder.
+fn fly_target(node: &PlaceNode) -> Option<(f64, f64, f64)> {
+    let extent = node.extent()?;
+    Some((extent.lat, extent.lon, extent.fit_altitude_km()))
+}
+
 fn nodes(
     ui: &mut egui::Ui,
     entries: &mut [PlaceNode],
@@ -165,6 +215,7 @@ fn nodes(
     goto: &mut Option<(f64, f64, f64)>,
     lang: Lang,
 ) {
+    let entries_len = entries.len();
     for node in entries {
         if matches!(node.item, PlaceItem::Folder { .. }) {
             CollapsingState::load_with_default_open(
@@ -179,6 +230,21 @@ fn nodes(
                 }
             });
         } else {
+            // Huge imports hold tens of thousands of rows. Rows have one height,
+            // so those outside the scroll viewport become blank space.
+            let stride_id = egui::Id::new("place-row-stride");
+            let stride = ui
+                .data(|data| data.get_temp::<f32>(stride_id))
+                .unwrap_or(ui.spacing().interact_size.y);
+            let top = ui.cursor().min.y;
+            let clip = ui.clip_rect();
+            if entries_len > VIRTUAL_ROWS_AFTER
+                && selected.is_none_or(|id| id != node.id())
+                && (top + stride < clip.min.y || top > clip.max.y)
+            {
+                ui.add_space(stride);
+                continue;
+            }
             ui.horizontal(|ui| {
                 let gap = ui.spacing().item_spacing.x;
                 ui.spacing_mut().item_spacing.x = 0.0;
@@ -186,6 +252,10 @@ fn nodes(
                 ui.spacing_mut().item_spacing.x = gap;
                 row(ui, node, selected, action, goto, lang);
             });
+            let drawn = ui.cursor().min.y - top;
+            if drawn > 0.0 {
+                ui.data_mut(|data| data.insert_temp(stride_id, drawn));
+            }
         }
     }
 }
@@ -281,11 +351,14 @@ impl App {
             ui.add_space(4.0);
             selected_name_editor(ui, node.name_mut(), self.place_reveal_requested);
             description_editor(ui, id, node.description_mut(), lang);
+            if let PlaceItem::Marker(pm) = &node.item {
+                attribute_panel(ui, id, &pm.attributes, lang);
+            }
             ui.horizontal(|ui| {
-                if let PlaceItem::Marker(pm) = &node.item
+                if let Some(target) = fly_target(node)
                     && ui.button(lang.text("placemarks-fly-to-action")).clicked()
                 {
-                    goto = Some((pm.lat, pm.lon, 3.0));
+                    goto = Some(target);
                 }
                 if ui.button(lang.text("places-delete-action")).clicked() {
                     action = Some(Action::Delete(id));
@@ -331,6 +404,7 @@ fn add_center_placemark(
         desc: String::new(),
         lat: center.0,
         lon: center.1,
+        ..Default::default()
     });
     *selection = Some(node.id());
     places.insert(parent, node);

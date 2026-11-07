@@ -51,6 +51,7 @@ impl App {
         self.placemarks = Default::default();
         self.place_selection = None;
         self.place_reveal_requested = false;
+        self.line_pick = Default::default();
         self.kml_path = "placemarks.kml".into();
         self.kml_session.clear();
         self.settings_writer.kml_paths(&self.kml_session.paths);

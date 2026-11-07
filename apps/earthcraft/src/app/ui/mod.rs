@@ -1,5 +1,6 @@
 mod places;
 use eframe::egui::{self, FontId};
+pub(in crate::app) use places::attribute_grid;
 pub(in crate::app) mod aircraft;
 pub(in crate::app) mod altitude;
 mod bars;

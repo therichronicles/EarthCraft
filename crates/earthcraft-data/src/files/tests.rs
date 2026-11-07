@@ -46,6 +46,7 @@ fn jobs_preserve_order_snapshot_inputs_and_wake_after_success_and_failure() {
         desc: "".into(),
         lat: 20.0,
         lon: 30.0,
+        ..Default::default()
     });
     jobs.save_kml(kml.clone(), &marks).unwrap();
     *marks.roots[0].name_mut() = "Edited later".into();
@@ -178,6 +179,7 @@ fn restore_reopens_sources_in_order_prunes_missing_and_retains_other_errors() {
             desc: String::new(),
             lat: index as f64,
             lon: 0.0,
+            ..Default::default()
         });
         crate::kml::save_kml(path.to_str().unwrap(), &places).unwrap();
         paths.push(path);

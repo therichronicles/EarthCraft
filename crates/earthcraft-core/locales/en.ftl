@@ -413,6 +413,7 @@ places-add-folder-action = + Folder
 places-clear-all-action = Clear All
 places-delete-action = Delete
 places-visible-help = Show this place and its children on the globe
+places-attributes-heading = Attributes ({ $count })
 places-empty-help = Open a KML or KMZ file or add a place. Drag places into folders to organize them.
 places-description-placeholder = Description
 

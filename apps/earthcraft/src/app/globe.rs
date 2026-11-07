@@ -208,6 +208,11 @@ impl App {
         {
             self.ruler_paths.add_point(pt, start_ruler_path);
         }
+        // Lines on the globe can be hovered and clicked to open their attributes.
+        self.line_pick.probe = resp
+            .hover_pos()
+            .filter(|p| rect.contains(*p))
+            .map(|p| (p, !ruler_captured && !self.ruler && resp.clicked()));
         if resp.secondary_clicked() {
             self.menu_pick = resp
                 .interact_pointer_pos()
@@ -478,6 +483,7 @@ impl App {
                     desc: String::new(),
                     lat: la,
                     lon: lo,
+                    ..Default::default()
                 }),
                 1 => self.fly_to(
                     la,
