@@ -16,11 +16,18 @@ fn main() {
     for pm in places.markers(false) {
         with_desc += usize::from(!pm.desc.is_empty());
         with_attrs += usize::from(!pm.attributes.is_empty());
-        let key = pm.line_style.map_or("none".into(), |s| format!("{:?} w{}", s.rgba, s.width));
+        let key = pm
+            .line_style
+            .map_or("none".into(), |s| format!("{:?} w{}", s.rgba, s.width));
         *colors.entry(key).or_default() += 1;
     }
     for pm in places.markers(false).take(3) {
-        println!("name {:?} attrs {} first {:?}", pm.name, pm.attributes.len(), pm.attributes.first());
+        println!(
+            "name {:?} attrs {} first {:?}",
+            pm.name,
+            pm.attributes.len(),
+            pm.attributes.first()
+        );
     }
     if let Some(pm) = places.markers(false).find(|p| !p.desc.is_empty()) {
         println!("KEPT DESC: {:?}\nATTRS: {:?}", pm.desc, pm.attributes);

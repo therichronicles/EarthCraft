@@ -60,7 +60,10 @@ fn marker_children(visibility: Element, pm: &Placemark) -> Vec<Element> {
             children: vec![Element {
                 name: "LineStyle".into(),
                 children: vec![
-                    text("color", &format!("{alpha:02x}{blue:02x}{green:02x}{red:02x}")),
+                    text(
+                        "color",
+                        &format!("{alpha:02x}{blue:02x}{green:02x}{red:02x}"),
+                    ),
                     text("width", &style.width.to_string()),
                 ],
                 ..Default::default()
@@ -290,9 +293,11 @@ fn geometry_paths(geometry: &Geometry<f64>) -> Vec<GeoPath> {
             .chain(&polygon.inner)
             .filter_map(|r| ring(true, &r.coords))
             .collect(),
-        Geometry::MultiGeometry(collection) => {
-            collection.geometries.iter().flat_map(geometry_paths).collect()
-        }
+        Geometry::MultiGeometry(collection) => collection
+            .geometries
+            .iter()
+            .flat_map(geometry_paths)
+            .collect(),
         _ => Vec::new(),
     }
 }

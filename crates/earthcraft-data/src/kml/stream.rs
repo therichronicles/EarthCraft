@@ -121,7 +121,10 @@ pub(super) fn parse(xml: &[u8], lg: Lang) -> Result<Places, crate::Error> {
             Event::End(_) => {
                 if let Some(frame) = stack.pop() {
                     let nodes = frame.finish(lg);
-                    stack.last_mut().map_or(&mut roots, |p| &mut p.children).extend(nodes);
+                    stack
+                        .last_mut()
+                        .map_or(&mut roots, |p| &mut p.children)
+                        .extend(nodes);
                 }
             }
             Event::Eof => break,
@@ -130,7 +133,10 @@ pub(super) fn parse(xml: &[u8], lg: Lang) -> Result<Places, crate::Error> {
     }
     while let Some(frame) = stack.pop() {
         let nodes = frame.finish(lg);
-        stack.last_mut().map_or(&mut roots, |p| &mut p.children).extend(nodes);
+        stack
+            .last_mut()
+            .map_or(&mut roots, |p| &mut p.children)
+            .extend(nodes);
     }
     Ok(Places { roots })
 }

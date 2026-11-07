@@ -273,7 +273,15 @@ impl Rng {
 
 fn text(rng: &mut Rng) -> String {
     const PARTS: [&str; 9] = [
-        "Alpha", " padded ", "A &amp; B", "caf\u{e9}", "&lt;tag&gt;", "&#38;x", "", "two  spaces", "<![CDATA[raw &amp; <b>]]>",
+        "Alpha",
+        " padded ",
+        "A &amp; B",
+        "caf\u{e9}",
+        "&lt;tag&gt;",
+        "&#38;x",
+        "",
+        "two  spaces",
+        "<![CDATA[raw &amp; <b>]]>",
     ];
     PARTS[rng.below(PARTS.len() as u64) as usize].to_owned()
 }
@@ -305,14 +313,21 @@ fn geometry(rng: &mut Rng, p: &str) -> String {
     match rng.below(7) {
         0 => String::new(),
         1 => format!("<{p}Point/>"),
-        2 | 3 => format!("<{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point>", c(rng)),
+        2 | 3 => format!(
+            "<{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point>",
+            c(rng)
+        ),
         4 => format!(
             "<{p}LineString><{p}coordinates>{} {} {}</{p}coordinates></{p}LineString>",
-            c(rng), c(rng), c(rng)
+            c(rng),
+            c(rng),
+            c(rng)
         ),
         5 => format!(
             "<{p}Polygon><{p}outerBoundaryIs><{p}LinearRing><{p}coordinates>{} {} {}</{p}coordinates></{p}LinearRing></{p}outerBoundaryIs></{p}Polygon>",
-            c(rng), c(rng), c(rng)
+            c(rng),
+            c(rng),
+            c(rng)
         ),
         _ => format!(
             "<{p}MultiGeometry><{p}Point/><{p}Point><{p}coordinates>{}</{p}coordinates></{p}Point></{p}MultiGeometry>",
@@ -355,10 +370,14 @@ fn container(rng: &mut Rng, p: &str, depth: u32) -> String {
         }
     }
     if rng.chance(30) {
-        parts.push(format!("<{p}Style id=\"s\"><{p}IconStyle><{p}scale>1</{p}scale></{p}IconStyle></{p}Style>"));
+        parts.push(format!(
+            "<{p}Style id=\"s\"><{p}IconStyle><{p}scale>1</{p}scale></{p}IconStyle></{p}Style>"
+        ));
     }
     if rng.chance(10) {
-        parts.push(format!("<{p}NetworkLink><{p}name>skip</{p}name><{p}Placemark/></{p}NetworkLink>"));
+        parts.push(format!(
+            "<{p}NetworkLink><{p}name>skip</{p}name><{p}Placemark/></{p}NetworkLink>"
+        ));
     }
     for _ in 0..rng.below(5) {
         parts.push(if depth < 4 && rng.chance(30) {
@@ -375,9 +394,19 @@ fn container(rng: &mut Rng, p: &str, depth: u32) -> String {
 
 fn document(rng: &mut Rng) -> String {
     let p = if rng.chance(25) { "k:" } else { "" };
-    let ns = if p.is_empty() { "" } else { " xmlns:k=\"http://www.opengis.net/kml/2.2\"" };
+    let ns = if p.is_empty() {
+        ""
+    } else {
+        " xmlns:k=\"http://www.opengis.net/kml/2.2\""
+    };
     let body: String = (0..1 + rng.below(3))
-        .map(|_| if rng.chance(70) { container(rng, p, 0) } else { placemark(rng, p) })
+        .map(|_| {
+            if rng.chance(70) {
+                container(rng, p, 0)
+            } else {
+                placemark(rng, p)
+            }
+        })
         .collect();
     match rng.below(4) {
         0 => body,
@@ -392,10 +421,18 @@ fn dump(nodes: &[PlaceNode], out: &mut String) {
                 "M({:?},{:?},{},{},{});",
                 pm.name, pm.desc, pm.lat, pm.lon, node.visible
             )),
-            PlaceItem::Folder { name, description, document, children } => {
-                out.push_str(&format!("F({name:?},{description:?},{document},{});[", node.visible));
+            PlaceItem::Folder {
+                name,
+                description,
+                document,
+                children,
+            } => {
+                out.push_str(&format!(
+                    "F({name:?},{description:?},{document},{});[",
+                    node.visible
+                ));
                 dump(children, out);
-                out.push_str("]");
+                out.push(']');
             }
         }
     }
@@ -407,7 +444,9 @@ fn streaming_reader_matches_whole_document_decoding() {
     let mut compared = 0;
     for case in 0..3000 {
         let xml = document(&mut rng);
-        let Ok(prepared) = guard::prepare(&xml) else { continue };
+        let Ok(prepared) = guard::prepare(&xml) else {
+            continue;
+        };
         let dom = parse_prepared_dom(prepared.clone(), Lang::En);
         let stream = stream::parse(&prepared, Lang::En);
         match (dom, stream) {
@@ -419,7 +458,11 @@ fn streaming_reader_matches_whole_document_decoding() {
                 compared += 1;
             }
             (Err(_), Err(_)) => {}
-            (a, b) => panic!("case {case}: dom ok={} stream ok={}: {xml}", a.is_ok(), b.is_ok()),
+            (a, b) => panic!(
+                "case {case}: dom ok={} stream ok={}: {xml}",
+                a.is_ok(),
+                b.is_ok()
+            ),
         }
     }
     assert!(compared > 2000, "only {compared} comparable documents");
@@ -442,7 +485,10 @@ fn lines_and_outlines_are_imported_and_survive_a_save() {
     assert_eq!((marks[0].lat, marks[0].lon), (20.0, 10.0));
     assert_eq!(marks[0].paths.len(), 1);
     assert!(!marks[0].paths[0].is_closed());
-    assert_eq!(marks[0].paths[0].points(), [(20.0, 10.0), (21.0, 11.0), (22.0, 12.0)]);
+    assert_eq!(
+        marks[0].paths[0].points(),
+        [(20.0, 10.0), (21.0, 11.0), (22.0, 12.0)]
+    );
     assert!(marks[1].paths[0].is_closed());
     // Out-of-range vertices are dropped instead of failing the import.
     assert_eq!(marks[2].paths.len(), 2);
@@ -487,14 +533,20 @@ XD,1-24</SimpleData></SchemaData></ExtendedData>
     // A generated name is replaced by the first line of LABEL; the repeated table is dropped.
     assert_eq!(marks[0].name, "72-BFO-I");
     assert_eq!(marks[0].desc, "");
-    assert_eq!(marks[0].attributes[0], ("OWNER".to_owned(), "ACME".to_owned()));
+    assert_eq!(
+        marks[0].attributes[0],
+        ("OWNER".to_owned(), "ACME".to_owned())
+    );
     assert_eq!(marks[0].attributes[1].1, "72-BFO-I\nXD,1-24");
     let style = marks[0].line_style.unwrap();
     assert_eq!((style.rgba, style.width), ([0, 0, 255, 255], 2.0));
     // A real name and real notes stay; an inline style wins.
     assert_eq!(marks[1].name, "Main St");
     assert_eq!(marks[1].desc, "Field notes");
-    assert_eq!(marks[1].attributes, [("Owner".to_owned(), "City".to_owned())]);
+    assert_eq!(
+        marks[1].attributes,
+        [("Owner".to_owned(), "City".to_owned())]
+    );
     assert_eq!(marks[1].line_style.unwrap().rgba, [255, 0, 0, 255]);
 
     let dir = std::env::temp_dir().join(format!("earthcraft-attrs-{}", std::process::id()));

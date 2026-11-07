@@ -139,13 +139,17 @@ impl App {
                 for run in runs.drain(..) {
                     if !pm.name.is_empty()
                         && let Some((at, angle, length)) =
-                            earthcraft_render::overlays::paths::label_anchor(&run, PATH_LABEL_MIN_LENGTH)
+                            earthcraft_render::overlays::paths::label_anchor(
+                                &run,
+                                PATH_LABEL_MIN_LENGTH,
+                            )
                     {
                         labels.push((length, pm.name.as_str(), at, angle));
                     }
                     if let Some((at, _)) = probe {
                         let reach = LINE_PICK_RADIUS + stroke.width * 0.5;
-                        let distance = earthcraft_render::overlays::paths::distance_to_run(&run, at);
+                        let distance =
+                            earthcraft_render::overlays::paths::distance_to_run(&run, at);
                         if distance <= reach && nearest.is_none_or(|(best, _)| distance < best) {
                             nearest = Some((distance, id));
                         }
@@ -160,7 +164,9 @@ impl App {
         }
         if let Some((at, clicked)) = probe {
             if nearest.is_some() {
-                painter.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                painter
+                    .ctx()
+                    .set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if clicked {
                 // Clicking empty globe closes the box.
@@ -178,7 +184,10 @@ impl App {
             if !occupied.claim(at) {
                 continue;
             }
-            for (shadow, color) in [(Vec2::new(1.0, 1.0), Color32::BLACK), (Vec2::ZERO, Color32::WHITE)] {
+            for (shadow, color) in [
+                (Vec2::new(1.0, 1.0), Color32::BLACK),
+                (Vec2::ZERO, Color32::WHITE),
+            ] {
                 let galley = painter.layout_no_wrap(name.to_owned(), label_font.clone(), color);
                 let size = galley.size();
                 // Lift the text off the line along its normal.
@@ -218,7 +227,13 @@ impl App {
                     font.clone(),
                     Color32::BLACK,
                 );
-                painter.text(tp, Align2::LEFT_BOTTOM, &pm.name, font.clone(), Color32::WHITE);
+                painter.text(
+                    tp,
+                    Align2::LEFT_BOTTOM,
+                    &pm.name,
+                    font.clone(),
+                    Color32::WHITE,
+                );
             }
         }
         self.show_line_popup(painter.ctx());

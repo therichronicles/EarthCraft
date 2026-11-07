@@ -45,10 +45,9 @@ impl Grid {
     }
     /// Claim the cell holding `point`; false when it was already claimed.
     fn claim(&mut self, point: Pos2) -> bool {
-        let column = (((point.x - self.origin.x) / self.cell.x).max(0.0) as usize)
-            .min(self.columns - 1);
-        let row = (((point.y - self.origin.y) / self.cell.y).max(0.0) as usize)
-            .min(self.rows - 1);
+        let column =
+            (((point.x - self.origin.x) / self.cell.x).max(0.0) as usize).min(self.columns - 1);
+        let row = (((point.y - self.origin.y) / self.cell.y).max(0.0) as usize).min(self.rows - 1);
         !std::mem::replace(&mut self.taken[row * self.columns + column], true)
     }
 }
@@ -110,7 +109,12 @@ mod tests {
     #[test]
     fn dense_sets_are_thinned_to_one_marker_per_cell_and_limited_labels() {
         let points: Vec<Pos2> = (0..60_000_u64)
-            .map(|i| pos2(((i * 7919) % 1900) as f32 + 5.0, ((i * 104_729) % 1070) as f32 + 5.0))
+            .map(|i| {
+                pos2(
+                    ((i * 7919) % 1900) as f32 + 5.0,
+                    ((i * 104_729) % 1070) as f32 + 5.0,
+                )
+            })
             .collect();
         let selected = select_markers(&points, bounds());
         let max_cells = (1920 / 10 + 2) * (1080 / 10 + 2);

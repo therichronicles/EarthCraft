@@ -3,7 +3,7 @@
 //! A network can hold tens of thousands of paths, so each one is culled with
 //! its precomputed bounds and drawn with only as many vertices as its on-screen
 //! length can show, instead of projecting every vertex every frame.
-use earthcraft_core::{camera::Basis, math::ll_to_v3, placemark::GeoPath, VERTICAL_FOV_HALF_TAN};
+use earthcraft_core::{VERTICAL_FOV_HALF_TAN, camera::Basis, math::ll_to_v3, placemark::GeoPath};
 use emath::{Pos2, Rect};
 
 /// Paths shorter than this on screen (points) are not drawn.
@@ -53,7 +53,10 @@ pub fn project_path(basis: &Basis, rect: Rect, path: &GeoPath, runs: &mut Vec<Ve
         }
     };
     let mut all_visible = true;
-    for index in (0..=last).step_by(stride).chain((last % stride != 0).then_some(last)) {
+    for index in (0..=last)
+        .step_by(stride)
+        .chain((!last.is_multiple_of(stride)).then_some(last))
+    {
         let (lat, lon) = points[index];
         match basis.project(basis.surface_position(lat, lon), rect) {
             Some(point) => run.push(point),
@@ -63,7 +66,10 @@ pub fn project_path(basis: &Basis, rect: Rect, path: &GeoPath, runs: &mut Vec<Ve
             }
         }
     }
-    if path.is_closed() && all_visible && let Some(&first) = run.first() {
+    if path.is_closed()
+        && all_visible
+        && let Some(&first) = run.first()
+    {
         run.push(first);
     }
     flush(&mut run, runs);
@@ -123,8 +129,16 @@ mod tests {
 
     fn view(lat: f64, lon: f64, altitude_km: f64) -> (Basis, Rect) {
         let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(1920.0, 1080.0));
-        let cam = Cam { lat, lon, heading: 0.0, alt: altitude_km };
-        (cam.basis_for_model(1920.0 / 1080.0, EarthModel::PerfectSphere), rect)
+        let cam = Cam {
+            lat,
+            lon,
+            heading: 0.0,
+            alt: altitude_km,
+        };
+        (
+            cam.basis_for_model(1920.0 / 1080.0, EarthModel::PerfectSphere),
+            rect,
+        )
     }
     fn line(vertices: usize, step: f64) -> GeoPath {
         GeoPath::new(false, (0..vertices).map(|i| (0.0, i as f64 * step))).unwrap()
@@ -167,10 +181,12 @@ mod tests {
         let dense = line(50_000, 0.0002);
         let runs = project(&basis, rect, &dense);
         let drawn: usize = runs.iter().map(Vec::len).sum();
-        assert!(drawn >= 2 && drawn < 2_000, "{drawn}");
+        assert!((2..2_000).contains(&drawn), "{drawn}");
         // The final vertex is always kept.
         let (lat, lon) = *dense.points().last().unwrap();
-        let end = basis.project(basis.surface_position(lat, lon), rect).unwrap();
+        let end = basis
+            .project(basis.surface_position(lat, lon), rect)
+            .unwrap();
         assert_eq!(*runs[0].last().unwrap(), end);
     }
 
@@ -202,7 +218,8 @@ mod tests {
     #[test]
     fn closed_rings_repeat_their_first_point() {
         let (basis, rect) = view(0.0, 0.0, 1500.0);
-        let ring = GeoPath::new(true, [(1.0, 1.0), (1.0, -1.0), (-1.0, -1.0), (-1.0, 1.0)]).unwrap();
+        let ring =
+            GeoPath::new(true, [(1.0, 1.0), (1.0, -1.0), (-1.0, -1.0), (-1.0, 1.0)]).unwrap();
         let runs = project(&basis, rect, &ring);
         assert_eq!(runs[0].first(), runs[0].last());
     }

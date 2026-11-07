@@ -33,8 +33,13 @@ impl GeoPath {
         if points.len() < 2 {
             return None;
         }
-        let units: Vec<_> = points.iter().map(|&(lat, lon)| ll_to_v3(lat, lon)).collect();
-        let sum = units.iter().fold(glam::DVec3::ZERO, |sum, &unit| sum + unit);
+        let units: Vec<_> = points
+            .iter()
+            .map(|&(lat, lon)| ll_to_v3(lat, lon))
+            .collect();
+        let sum = units
+            .iter()
+            .fold(glam::DVec3::ZERO, |sum, &unit| sum + unit);
         let mean = if sum.length_squared() > 1e-18 {
             sum.normalize()
         } else {

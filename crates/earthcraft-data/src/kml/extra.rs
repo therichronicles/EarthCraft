@@ -25,7 +25,10 @@ impl Styles {
     }
     pub(super) fn resolve(&self, url: &str) -> Option<LineStyle> {
         let id = url.trim().trim_start_matches('#');
-        let id = self.maps.get(id).map_or(id, |next| next.trim_start_matches('#'));
+        let id = self
+            .maps
+            .get(id)
+            .map_or(id, |next| next.trim_start_matches('#'));
         self.lines.get(id).copied()
     }
 }
@@ -48,10 +51,18 @@ pub(super) fn inline_style(children: &[Element]) -> Option<LineStyle> {
         .children
         .iter()
         .find(|e| e.name == "LineStyle")?;
-    let field = |name: &str| line.children.iter().find(|e| e.name == name)?.content.as_deref();
+    let field = |name: &str| {
+        line.children
+            .iter()
+            .find(|e| e.name == name)?
+            .content
+            .as_deref()
+    };
     line_style(
         field("color").unwrap_or("ffffffff"),
-        field("width").and_then(|w| w.trim().parse().ok()).unwrap_or(1.0),
+        field("width")
+            .and_then(|w| w.trim().parse().ok())
+            .unwrap_or(1.0),
     )
 }
 
@@ -102,8 +113,14 @@ pub(super) fn is_generic_name(name: &str) -> bool {
 
 /// The first non-empty line of a `LABEL` field.
 pub(super) fn label(attributes: &[(String, String)]) -> Option<String> {
-    let (_, value) = attributes.iter().find(|(key, _)| key.eq_ignore_ascii_case("label"))?;
-    value.lines().map(str::trim).find(|line| !line.is_empty()).map(str::to_owned)
+    let (_, value) = attributes
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case("label"))?;
+    value
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_owned)
 }
 
 fn plain_tokens(html: &str) -> Vec<String> {
@@ -196,14 +213,23 @@ mod tests {
         ];
         let table = "<center><table><tr><th><em>Attributes</em></th></tr><tr><th>OWNER</th><td>HICKORYTECH CLEC</td></tr><tr><th>F_Q</th><td>2665</td></tr></table></center>";
         assert!(description_repeats(table, &attributes));
-        assert!(!description_repeats("<b>Notes</b> from the field", &attributes));
-        assert!(!description_repeats("OWNER HICKORYTECH CLEC F_Q 2665", &attributes));
+        assert!(!description_repeats(
+            "<b>Notes</b> from the field",
+            &attributes
+        ));
+        assert!(!description_repeats(
+            "OWNER HICKORYTECH CLEC F_Q 2665",
+            &attributes
+        ));
         assert!(!description_repeats(table, &[]));
         // A row for an empty field has no matching attribute.
         let with_empty = table.replace("</table>", "<tr><th>LMS_ROUTE</th><td></td></tr></table>");
         assert!(description_repeats(&with_empty, &attributes));
         // A row with a value the attributes lack is real information.
-        let extra = table.replace("</table>", "<tr><th>NOTE</th><td>call first</td></tr></table>");
+        let extra = table.replace(
+            "</table>",
+            "<tr><th>NOTE</th><td>call first</td></tr></table>",
+        );
         assert!(!description_repeats(&extra, &attributes));
     }
 }

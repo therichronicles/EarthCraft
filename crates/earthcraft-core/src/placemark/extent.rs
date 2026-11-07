@@ -1,8 +1,8 @@
 //! The area of the globe a place or folder covers, for flying the camera to it.
 use super::{PlaceItem, PlaceNode};
 use crate::{
-    math::{ll_to_v3, v3_to_ll},
     EARTH_RADIUS_KM, MAX_CAMERA_ALTITUDE_KM, MIN_CAMERA_ALTITUDE_KM, VERTICAL_FOV_HALF_TAN,
+    math::{ll_to_v3, v3_to_ll},
 };
 use glam::DVec3;
 
@@ -39,7 +39,11 @@ impl PlaceNode {
         collect(self, &mut parts);
         let (first, _) = *parts.first()?;
         let sum: DVec3 = parts.iter().map(|(v, _)| *v).sum();
-        let center = if sum.length() > 1e-9 { sum.normalize() } else { first };
+        let center = if sum.length() > 1e-9 {
+            sum.normalize()
+        } else {
+            first
+        };
         let radius = parts
             .iter()
             .map(|(v, r)| center.dot(*v).clamp(-1.0, 1.0).acos() + r)
@@ -82,7 +86,11 @@ mod tests {
 
     #[test]
     fn a_lone_point_flies_to_the_point_altitude() {
-        let node = PlaceNode::marker(Placemark { lat: 44.0, lon: -93.0, ..Default::default() });
+        let node = PlaceNode::marker(Placemark {
+            lat: 44.0,
+            lon: -93.0,
+            ..Default::default()
+        });
         let extent = node.extent().unwrap();
         assert!((extent.lat - 44.0).abs() < 1e-9 && (extent.lon + 93.0).abs() < 1e-9);
         assert_eq!(extent.fit_altitude_km(), POINT_ALTITUDE_KM);
@@ -121,7 +129,11 @@ mod tests {
     fn empty_folders_have_no_extent_and_huge_ones_clamp() {
         let empty = PlaceNode::folder("e".into(), String::new(), false, vec![]);
         assert!(empty.extent().is_none());
-        let world = Extent { lat: 0.0, lon: 0.0, radius: 3.0 };
+        let world = Extent {
+            lat: 0.0,
+            lon: 0.0,
+            radius: 3.0,
+        };
         assert_eq!(world.fit_altitude_km(), MAX_CAMERA_ALTITUDE_KM);
     }
 }

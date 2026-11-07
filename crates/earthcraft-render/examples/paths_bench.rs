@@ -12,8 +12,13 @@ fn main() {
         ("metro", 44.97, -93.26, 60.0),
         ("street", 44.97, -93.26, 2.0),
     ] {
-        let basis = Cam { lat, lon, heading: 0.0, alt }
-            .basis_for_model(16.0 / 9.0, EarthModel::Wgs84);
+        let basis = Cam {
+            lat,
+            lon,
+            heading: 0.0,
+            alt,
+        }
+        .basis_for_model(16.0 / 9.0, EarthModel::Wgs84);
         let start = Instant::now();
         let (mut runs, mut vertices) = (0, 0);
         let mut out = Vec::new();
@@ -26,6 +31,9 @@ fn main() {
                 }
             }
         }
-        println!("{label:16} {runs:6} runs {vertices:8} vertices {:.2?}", start.elapsed());
+        println!(
+            "{label:16} {runs:6} runs {vertices:8} vertices {:.2?}",
+            start.elapsed()
+        );
     }
 }
