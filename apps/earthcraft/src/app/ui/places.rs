@@ -178,20 +178,18 @@ fn row(
     if response.clicked() || response.secondary_clicked() {
         *selected = Some(id);
     }
-    if response.double_clicked()
-        && let PlaceItem::Marker(pm) = &node.item
-    {
-        *goto = Some((pm.lat, pm.lon, 3.0));
+    if response.double_clicked() {
+        *goto = fly_target(node);
     }
     response.dnd_set_drag_payload(id);
     if folder && let Some(source) = response.dnd_release_payload::<u64>() {
         *action = Some(Action::Move(*source, Some(id)));
     }
     response.context_menu(|ui| {
-        if let PlaceItem::Marker(pm) = &node.item
+        if let Some(target) = fly_target(node)
             && ui.button(lang.text("placemarks-fly-to-action")).clicked()
         {
-            *goto = Some((pm.lat, pm.lon, 3.0));
+            *goto = Some(target);
             ui.close();
         }
         if ui.button(lang.text("places-delete-action")).clicked() {
@@ -200,6 +198,13 @@ fn row(
         }
     });
     response
+}
+
+/// Where to fly to put a place or folder front and center: its center and an
+/// altitude that fits everything under it. `None` for an empty folder.
+fn fly_target(node: &PlaceNode) -> Option<(f64, f64, f64)> {
+    let extent = node.extent()?;
+    Some((extent.lat, extent.lon, extent.fit_altitude_km()))
 }
 
 fn nodes(
@@ -350,10 +355,10 @@ impl App {
                 attribute_panel(ui, id, &pm.attributes, lang);
             }
             ui.horizontal(|ui| {
-                if let PlaceItem::Marker(pm) = &node.item
+                if let Some(target) = fly_target(node)
                     && ui.button(lang.text("placemarks-fly-to-action")).clicked()
                 {
-                    goto = Some((pm.lat, pm.lon, 3.0));
+                    goto = Some(target);
                 }
                 if ui.button(lang.text("places-delete-action")).clicked() {
                     action = Some(Action::Delete(id));

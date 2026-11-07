@@ -1,3 +1,5 @@
+mod extent;
+pub use extent::Extent;
 mod path;
 pub use path::GeoPath;
 
