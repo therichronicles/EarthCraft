@@ -5,9 +5,22 @@ use eframe::egui::{self, Align2, Color32, Pos2, Rect, Stroke, Vec2};
 #[cfg(test)]
 mod benchmarks;
 mod cache;
+mod popup;
 mod projected;
 pub(super) use cache::OverlayCache;
 use cache::{OverlayLayers, OverlayStyle, OverlayView};
+
+/// How close (points) a click or hover must be to a line to pick it.
+const LINE_PICK_RADIUS: f32 = 6.0;
+
+/// Line picking: the pointer to test this frame and the line whose box is open.
+#[derive(Default)]
+pub(super) struct LinePick {
+    /// Pointer position over the globe this frame, and whether it clicked.
+    pub(super) probe: Option<(Pos2, bool)>,
+    /// Open attribute box: placemark id and where it was clicked.
+    open: Option<(u64, Pos2)>,
+}
 
 /// A run must be at least this long (points) to carry a label.
 const PATH_LABEL_MIN_LENGTH: f32 = 90.0;
@@ -111,7 +124,10 @@ impl App {
         };
         let mut runs = Vec::new();
         let mut labels: Vec<(f32, &str, Pos2, f32)> = Vec::new();
-        for pm in self.placemarks.markers(true) {
+        let probe = self.line_pick.probe.take();
+        let open_id = self.line_pick.open.map(|(id, _)| id);
+        let mut nearest: Option<(f32, u64)> = None;
+        for (id, pm) in self.placemarks.markers_with_id(true) {
             let style = pm.line_style.unwrap_or(default_style);
             let [r, g, b, a] = style.rgba;
             let stroke = Stroke::new(
@@ -127,7 +143,30 @@ impl App {
                     {
                         labels.push((length, pm.name.as_str(), at, angle));
                     }
+                    if let Some((at, _)) = probe {
+                        let reach = LINE_PICK_RADIUS + stroke.width * 0.5;
+                        let distance = earthcraft_render::overlays::paths::distance_to_run(&run, at);
+                        if distance <= reach && nearest.is_none_or(|(best, _)| distance < best) {
+                            nearest = Some((distance, id));
+                        }
+                    }
+                    if open_id == Some(id) {
+                        let halo = Stroke::new(stroke.width + 5.0, Color32::from_white_alpha(200));
+                        painter.add(egui::Shape::line(run.clone(), halo));
+                    }
                     painter.add(egui::Shape::line(run, stroke));
+                }
+            }
+        }
+        if let Some((at, clicked)) = probe {
+            if nearest.is_some() {
+                painter.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if clicked {
+                // Clicking empty globe closes the box.
+                self.line_pick.open = nearest.map(|(_, id)| (id, at));
+                if let Some((_, id)) = nearest {
+                    self.place_selection = Some(id);
                 }
             }
         }
@@ -182,5 +221,6 @@ impl App {
                 painter.text(tp, Align2::LEFT_BOTTOM, &pm.name, font.clone(), Color32::WHITE);
             }
         }
+        self.show_line_popup(painter.ctx());
     }
 }

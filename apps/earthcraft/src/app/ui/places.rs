@@ -84,21 +84,31 @@ fn attribute_panel(ui: &mut egui::Ui, id: u64, attributes: &[(String, String)], 
         .id_salt(("place-attributes", id))
         .default_open(true)
         .show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .id_salt(("place-attributes-scroll", id))
-                .max_height(ATTRIBUTE_PANEL_HEIGHT_POINTS)
-                .auto_shrink([false, true])
+            attribute_grid(ui, id, attributes, ATTRIBUTE_PANEL_HEIGHT_POINTS);
+        });
+}
+
+/// Scrollable key/value table of imported attributes.
+pub(in crate::app) fn attribute_grid(
+    ui: &mut egui::Ui,
+    id: u64,
+    attributes: &[(String, String)],
+    max_height: f32,
+) {
+    egui::ScrollArea::vertical()
+        .id_salt(("place-attributes-scroll", id))
+        .max_height(max_height)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            egui::Grid::new(("place-attribute-grid", id))
+                .num_columns(2)
+                .striped(true)
                 .show(ui, |ui| {
-                    egui::Grid::new(("place-attribute-grid", id))
-                        .num_columns(2)
-                        .striped(true)
-                        .show(ui, |ui| {
-                            for (key, value) in attributes {
-                                ui.label(egui::RichText::new(key).strong());
-                                ui.add(egui::Label::new(value).wrap().selectable(true));
-                                ui.end_row();
-                            }
-                        });
+                    for (key, value) in attributes {
+                        ui.label(egui::RichText::new(key).strong());
+                        ui.add(egui::Label::new(value).wrap().selectable(true));
+                        ui.end_row();
+                    }
                 });
         });
 }

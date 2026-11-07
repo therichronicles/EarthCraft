@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn dense_sets_are_thinned_to_one_marker_per_cell_and_limited_labels() {
-        let points: Vec<Pos2> = (0..60_000)
+        let points: Vec<Pos2> = (0..60_000_u64)
             .map(|i| pos2(((i * 7919) % 1900) as f32 + 5.0, ((i * 104_729) % 1070) as f32 + 5.0))
             .collect();
         let selected = select_markers(&points, bounds());

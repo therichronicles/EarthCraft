@@ -96,6 +96,25 @@ pub fn label_anchor(run: &[Pos2], min_length: f32) -> Option<(Pos2, f32, f32)> {
     None
 }
 
+/// Shortest on-screen distance from `point` to the polyline `run`.
+pub fn distance_to_run(run: &[Pos2], point: Pos2) -> f32 {
+    let mut best = f32::INFINITY;
+    for pair in run.windows(2) {
+        let segment = pair[1] - pair[0];
+        let length_squared = segment.length_sq();
+        let t = if length_squared > 0.0 {
+            ((point - pair[0]).dot(segment) / length_squared).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        best = best.min((pair[0] + segment * t - point).length());
+    }
+    if let [only] = run {
+        best = (*only - point).length();
+    }
+    best
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +186,17 @@ mod tests {
         let backwards = [pos2(100.0, 0.0), pos2(0.0, 0.0)];
         let (_, angle, _) = label_anchor(&backwards, 10.0).unwrap();
         assert!(angle.abs() < 1e-6);
+    }
+
+    #[test]
+    fn distance_to_run_measures_to_the_nearest_segment() {
+        let run = [pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(100.0, 100.0)];
+        assert_eq!(distance_to_run(&run, pos2(50.0, 7.0)), 7.0);
+        assert_eq!(distance_to_run(&run, pos2(107.0, 50.0)), 7.0);
+        // Past an end the distance is to the endpoint, not the extended line.
+        assert_eq!(distance_to_run(&run, pos2(-3.0, 4.0)), 5.0);
+        assert!(distance_to_run(&[], pos2(0.0, 0.0)).is_infinite());
+        assert_eq!(distance_to_run(&[pos2(3.0, 4.0)], pos2(0.0, 0.0)), 5.0);
     }
 
     #[test]
